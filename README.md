@@ -115,23 +115,28 @@ yt-chatbot/
 │   └── test_setup.py         # Environment setup verification
 ├── src/                      # Source code
 │   ├── analysis/             # Video analysis logic
+│   │   ├── __init__.py
 │   │   ├── recommendation_engine.py
 │   │   ├── schemas.py         # Pydantic schemas for data validation
-│   │   ├── scoring_engine.py
-│   │   └── video_analyzer.py
+│   │   ├── scoring_engine.py  # Handles the 5-factor scoring system
+│   │   └── video_analyzer.py  # Main video analysis logic
 │   ├── api/                  # API clients and integrations
-│   │   ├── gemini_client.py   # Enhanced with robust logging
-│   │   ├── gemini_client_guideline_scorer.py
-│   │   └── youtube_client.py
-│   ├── database/             # Database models and client
-│   │   ├── models.py
-│   │   └── supabase_client.py
-│   ├── utils/                # Utility functions
-│   │   ├── config.py
-│   │   ├── formatters.py
-│   │   └── guideline_loader.py
-│   └── yt_chatbot/           # Main package
-│       └── cli.py            # Command line interface
+│   │   ├── __init__.py
+│   │   ├── gemini_client.py   # Enhanced with robust logging and response parsing
+│   │   ├── gemini_client_guideline_scorer.py  # Scoring based on guidelines
+│   │   └── youtube_client.py  # YouTube Data API v3 client
+│   └── utils/                # Utility functions
+│       ├── __init__.py
+│       ├── config.py         # Configuration management
+│       ├── formatters.py     # Data formatting utilities
+│       ├── guideline_loader.py  # Loading content guidelines
+│       └── youtube_utils.py  # YouTube-specific utilities
+├── tests/                    # Test files
+│   ├── test_basic.py         # Basic functionality tests
+│   ├── test_gemini.py        # Gemini API tests
+│   ├── test_schema_validation.py # Schema validation tests
+│   ├── test_scoring_engine.py # Scoring engine tests
+│   └── test_thumbnail_analysis.py # Thumbnail analysis tests
 ├── tests/                    # Test files
 │   ├── test_basic.py         # Basic functionality tests
 │   ├── test_gemini.py        # Gemini API tests

@@ -81,15 +81,34 @@ def load_chat_history() -> List[Dict[str, Any]]:
         logger.info(f"File {CHAT_HISTORY_FILE} exists.")
         try:
             with open(CHAT_HISTORY_FILE, "r", encoding="utf-8") as f:
-                history_data = json.load(f)
-                logger.info(f"Successfully loaded {len(history_data)} chats from {CHAT_HISTORY_FILE}.")
-                return history_data
+                history = json.load(f)
+                logger.info(f"Successfully loaded {len(history)} chats from {CHAT_HISTORY_FILE}.")
+                
+                # Format numbers in all historical messages
+                for conversation in history:
+                    if "messages" in conversation:
+                        for i, message in enumerate(conversation["messages"]):
+                            if message.get("role") == "assistant" and "content" in message:
+                                # Format numbers in the content
+                                content = message["content"]
+                                formatted_content = format_numbers_with_commas(content)
+                                if formatted_content != content:
+                                    print(f"[load_chat_history] Formatted message in conversation {conversation.get('id', 'unknown')}")
+                                    conversation["messages"][i]["content"] = formatted_content
+                
+                st.session_state.conversation_history = history
+                # Save the formatted history back to file
+                persist_chat_history(history)
+                return history
         except json.JSONDecodeError as e:
             logger.error(f"Error decoding JSON from {CHAT_HISTORY_FILE}: {e}")
         except FileNotFoundError:
             logger.error(f"File {CHAT_HISTORY_FILE} not found during open, though os.path.exists was true.")
     else:
         logger.info(f"File {CHAT_HISTORY_FILE} does not exist. Returning empty history.")
+    
+    # Create an empty history in case of errors
+    st.session_state.conversation_history = []
     return []
 
 
@@ -126,6 +145,8 @@ def init_session_state():
         ]
         st.session_state.analysis = None # Ensure analysis is reset for a new chat ID
         st.session_state.current_analysis = None # Ensure current_analysis is reset
+        # Reset video context for new chat
+        st.session_state.current_video_url = None
 
     # Ensure messages list exists, even if current_chat_id was already set
     # This handles cases where the app might have been reloaded without full re-initialization
@@ -138,6 +159,9 @@ def init_session_state():
             }
         ]
 
+    # Ensure video context tracking exists
+    if "current_video_url" not in st.session_state:
+        st.session_state.current_video_url = None
     
     if "current_chat_title" not in st.session_state or not st.session_state.current_chat_title:
         # If current_chat_id exists but title doesn't, try to load from history or set a default
@@ -146,6 +170,30 @@ def init_session_state():
             st.session_state.current_chat_title = existing_chat.get("title")
         else:
             st.session_state.current_chat_title = f"Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            
+    # Critical fix: Ensure analysis data is loaded for the current chat
+    # This ensures follow-up questions have access to the video context
+    if ("current_analysis" not in st.session_state or st.session_state.current_analysis is None) and st.session_state.get("current_chat_id"):
+        logger.info(f"Attempting to restore analysis data for chat: {st.session_state.current_chat_id}")
+        # Find the chat in history
+        history = st.session_state.get("conversation_history", [])
+        existing_chat = next((c for c in history if c.get("id") == st.session_state.current_chat_id), None)
+        
+        if existing_chat and existing_chat.get("analysis"):
+            # Restore both analysis objects from history
+            st.session_state.analysis = copy.deepcopy(existing_chat.get("analysis"))
+            st.session_state.current_analysis = copy.deepcopy(existing_chat.get("analysis"))
+            
+            # Extract video URL if available
+            if isinstance(st.session_state.analysis, dict) and "metadata" in st.session_state.analysis:
+                video_id = st.session_state.analysis.get("video_id")
+                if video_id:
+                    st.session_state.current_video_url = f"https://www.youtube.com/watch?v={video_id}"
+                    logger.info(f"Restored video context: {st.session_state.current_video_url}")
+            
+            logger.info("Successfully restored analysis data for current chat")
+        else:
+            logger.info("No analysis data found in history for current chat")
 
     # Initialize API clients and engines
     if "analyzer" not in st.session_state:
@@ -305,6 +353,19 @@ def setup_sidebar():
                         st.session_state.messages = copy.deepcopy(conv.get("messages", []))  # Use deepcopy
                         st.session_state.analysis = copy.deepcopy(conv.get("analysis", None))  # Use deepcopy
                         st.session_state.current_analysis = copy.deepcopy(conv.get("analysis", None))  # Use deepcopy for current_analysis as well
+                        
+                        # Restore video URL context from the conversation
+                        if "video_url" in conv:
+                            st.session_state.current_video_url = conv.get("video_url")
+                            print(f"[DEBUG_TRACE] Restored video URL from loaded chat: {st.session_state.current_video_url}")
+                        else:
+                            # Try to find video URL in messages
+                            for msg in reversed(st.session_state.messages):
+                                if isinstance(msg, dict) and "video_url" in msg:
+                                    st.session_state.current_video_url = msg.get("video_url")
+                                    print(f"[DEBUG_TRACE] Restored video URL from message: {st.session_state.current_video_url}")
+                                    break
+                        
                         logger.info(f"Loaded chat: {st.session_state.current_chat_id}")
                         st.rerun()
                 with col2:
@@ -1793,21 +1854,146 @@ def clean_response_text(response, for_chat=True):
     return response
 
 
+def format_numbers_with_commas(text):
+    """Format numbers in text with commas for thousands."""
+    if not text:
+        return text
+        
+    import re
+    
+    # Debug the incoming text to understand what we're processing
+    print(f"[format_numbers] Processing text: {text[:100]}...")
+    
+    # Use regex to find and replace numbers after specific labels
+    # The patterns are designed to match various formats of views/likes/comments
+    def add_commas(match):
+        """Add commas to a number match."""
+        try:
+            prefix = match.group(1)  # The label part ("Views: ", etc.)
+            number = match.group(2)  # The number part
+            # Strip any existing commas before formatting
+            clean_number = number.replace(',', '')
+            formatted = f"{int(clean_number):,}"
+            # Debug successful formatting
+            print(f"[format_numbers] Formatted: {number} -> {formatted}")
+            return f"{prefix}{formatted}"
+        except (ValueError, TypeError, IndexError) as e:
+            # If any error occurs, return the original match
+            print(f"[format_numbers] Error formatting: {e}")
+            return match.group(0)
+    
+    # Much more aggressive and comprehensive pattern matching
+    # Cover all possible formats we've seen in the chat
+    patterns = [
+        # Basic formats with various spacing
+        (r'(Views:)\s*(\d+)', add_commas),
+        (r'(Likes:)\s*(\d+)', add_commas),
+        (r'(Comments:)\s*(\d+)', add_commas),
+        
+        # Bold markdown with various spacing
+        (r'(\*\*Views:\*\*)\s*(\d+)', add_commas),
+        (r'(\*\*Likes:\*\*)\s*(\d+)', add_commas),
+        (r'(\*\*Comments:\*\*)\s*(\d+)', add_commas),
+        
+        # With explicit space after colon
+        (r'(Views: )(\d+)', add_commas),
+        (r'(Likes: )(\d+)', add_commas),
+        (r'(Comments: )(\d+)', add_commas),
+        
+        # Bold with explicit space after colon
+        (r'(\*\*Views:\*\* )(\d+)', add_commas),
+        (r'(\*\*Likes:\*\* )(\d+)', add_commas),
+        (r'(\*\*Comments:\*\* )(\d+)', add_commas),
+        
+        # Handle potential variations in capitalization
+        (r'(VIEWS:)\s*(\d+)', add_commas),
+        (r'(LIKES:)\s*(\d+)', add_commas),
+        (r'(COMMENTS:)\s*(\d+)', add_commas),
+        
+        # Handle variations with parentheses or brackets
+        (r'(Views[^\d]+)(\d+)', add_commas),
+        (r'(Likes[^\d]+)(\d+)', add_commas),
+        (r'(Comments[^\d]+)(\d+)', add_commas)
+    ]
+    
+    # Apply each pattern and check if any changes were made
+    original_text = text
+    for pattern, replacement in patterns:
+        text = re.sub(pattern, replacement, text)
+    
+    # Extra safety check: directly target known patterns with fixed position lookups
+    for metric in ['Views', 'Likes', 'Comments']:
+        # Look for patterns like "Views: 123456" with raw number extraction
+        pattern = f"{metric}: (\d+)"
+        matches = re.finditer(pattern, text)
+        for match in matches:
+            try:
+                full_match = match.group(0)
+                number_part = match.group(1)
+                if ',' not in number_part:  # Only format if commas aren't already there
+                    formatted_number = f"{int(number_part):,}"
+                    replacement = f"{metric}: {formatted_number}"
+                    text = text.replace(full_match, replacement)
+                    print(f"[format_numbers] Direct replacement: {full_match} -> {replacement}")
+            except Exception as e:
+                print(f"[format_numbers] Error in direct replacement: {str(e)}")
+    
+    # Debug if formatting made any changes
+    if original_text != text:
+        print("[format_numbers] Formatting was applied successfully")
+    else:
+        print("[format_numbers] No formatting changes were made")
+    
+    return text
+
 def display_chat():
     """Display the chat history from st.session_state.messages."""
-    for message in st.session_state.get("messages", []):
+    for i, message in enumerate(st.session_state.get("messages", [])):
         with st.chat_message(message["role"]):
-            # Content should already be cleaned plain text before being added to messages
+            # Skip special message handling
+            if message.get("type") == "thinking_indicator":
+                st.markdown(message["content"])
+                continue
+                
+            # Format response for display
             content_to_display = message.get("content", "")
-            # However, for robustness, especially with older history, let's clean it again if it's complex.
-            # But primarily, we expect it to be simple string content.
-            # Always attempt to clean, as a string itself might be a stringified dict.
-            # clean_response_text will return plain strings as-is if no cleaning is needed.
-            # Ensure the input to clean_response_text is a string if it's not a dict.
             if isinstance(content_to_display, dict):
                 content_to_display = clean_response_text(content_to_display, for_chat=True)
             else:
                 content_to_display = clean_response_text(str(content_to_display), for_chat=True)
+            
+            # GUARANTEED NUMBER FORMATTING: Always format numbers with commas
+            # This is critical for consistent display
+            message_type = message.get("type", "")
+            print(f"[display_chat] Processing message type: {message_type}, content starts with: {str(content_to_display)[:50]}...")
+            
+            # Apply aggressive number formatting
+            original_content = content_to_display
+            content_to_display = format_numbers_with_commas(content_to_display)
+            
+            # If it's a video analysis, force direct replacements for key metrics
+            if message_type == "video_analysis":
+                # Direct hard-coded replacements as an extra safety measure
+                import re
+                for metric in ['Views', 'Likes', 'Comments']:
+                    pattern = f"\*\*{metric}\*\*: (\d+)"
+                    matches = re.finditer(pattern, content_to_display)
+                    for match in matches:
+                        try:
+                            num_str = match.group(1)
+                            if ',' not in num_str:  # Only format if commas aren't already there
+                                formatted_num = f"{int(num_str):,}"
+                                old_text = f"**{metric}**: {num_str}"
+                                new_text = f"**{metric}**: {formatted_num}"
+                                content_to_display = content_to_display.replace(old_text, new_text)
+                                print(f"[display_chat] Forced metric formatting: {old_text} -> {new_text}")
+                        except Exception as e:
+                            print(f"[display_chat] Error formatting {metric}: {str(e)}")
+            
+            if content_to_display != original_content:
+                print(f"[display_chat] Successfully formatted numbers in message")
+            
+            # Display the formatted content
             st.markdown(content_to_display)
 
 
@@ -1828,6 +2014,7 @@ def save_current_conversation():
     current_messages = st.session_state.get("messages", [])
     current_analysis_data = st.session_state.get("current_analysis")
     current_title = st.session_state.get("current_chat_title", f"Chat {current_chat_id[:8]}")
+    current_video_url = st.session_state.get("current_video_url")
 
     # Only save if there's more than the initial assistant message OR if there's analysis data
     # The initial message is from the assistant.
@@ -1842,6 +2029,7 @@ def save_current_conversation():
         "title": current_title,
         "messages": sanitize_for_json(current_messages),
         "analysis": sanitize_for_json(current_analysis_data),
+        "video_url": current_video_url,  # Store video URL with the conversation
         "timestamp": datetime.now().isoformat(),
     }
 
@@ -1961,29 +2149,61 @@ def generate_contextual_response(prompt: str, analysis: Dict[str, Any]) -> str:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     
     # Create the comprehensive prompt for Gemini API
+    # Include video URL in the prompt for better context
+    video_url = st.session_state.get('current_video_url', 'Unknown')
+    print(f"[DEBUG_TRACE] Including video URL in prompt: {video_url}")
+    
     comprehensive_prompt = f"""
     # YOUTUBE VIDEO ASSISTANT - RESPONSE GENERATION
     Response ID: {timestamp}_query
+    Video URL: {video_url}
 
     ## USER QUERY
     {prompt}
 
     ## VIDEO INFORMATION
+    Video ID: {metadata.get('video_id', 'Unknown')}
     Title: {metadata.get('title', 'Unknown')}
     Channel: {metadata.get('channel_title', 'Unknown')}
     Duration: {metadata.get('duration', 'Unknown')}
-    Views: {metadata.get('views', 'Unknown')}
+    Views: {metadata.get('view_count', 'Unknown')}
+    Likes: {metadata.get('like_count', 'Unknown')}
+    Comments: {metadata.get('comment_count', 'Unknown')}
+    Publication Date: {metadata.get('published_at', 'Unknown')}
     
     ## ANALYSIS
     Title Analysis: {analysis_data.get('title_analysis', {})}
     Thumbnail Analysis: {thumbnail_analysis}
+    Content Quality Analysis: {analysis_data.get('content_quality_analysis', {})}
+    Technical Performance Analysis: {analysis_data.get('technical_analysis', {})}
+    Audience Engagement Analysis: {analysis_data.get('engagement_analysis', {})}
+    SEO Analysis: {analysis_data.get('seo_analysis', {})}
+    
+    ## SCORES
+    Overall Score: {scores.get('overall_score', 'Unknown')}
+    Title Analysis Score: {scores.get('factors', {}).get('hook_quality', {}).get('title_score', 'Unknown')}
+    Thumbnail Analysis Score: {scores.get('factors', {}).get('hook_quality', {}).get('thumbnail_score', 'Unknown')}
+    Hook Quality: {scores.get('factors', {}).get('hook_quality', {}).get('score', 'Unknown')}
+    Content Quality: {scores.get('factors', {}).get('content_quality', {}).get('score', 'Unknown')}
+    Technical Performance: {scores.get('factors', {}).get('technical_quality', {}).get('score', 'Unknown')}
+    Audience Engagement: {scores.get('factors', {}).get('engagement_metrics', {}).get('score', 'Unknown')}
+    SEO Optimization: {scores.get('factors', {}).get('seo_optimization', {}).get('score', 'Unknown')}
     
     ## RECOMMENDATIONS
     {recommendations}
 
+    ## VIDEO DESCRIPTION
+    {metadata.get('description', 'Not available')}
+    
     ## TASK
     Using the video information and analysis provided above, answer the user's query in a helpful, accurate, and engaging way.
     Provide specific information from the analysis and video details.
+    
+    If the user's query cannot be fully answered with the analysis data provided:
+    1. Use your knowledge about the video content based on the Video URL
+    2. Clearly indicate when you're using information beyond what's in the analysis report
+    3. If you don't know and can't determine from the URL, state that clearly
+    
     DO NOT include markdown code blocks in your response.
     Format your response naturally, as if you are having a conversation.
     When recommending improvements, be constructive and positive.
@@ -1994,7 +2214,7 @@ def generate_contextual_response(prompt: str, analysis: Dict[str, Any]) -> str:
         "temperature": 0.7,
         "top_p": 0.8,
         "top_k": 40,
-        "max_output_tokens": 1024,
+        "max_output_tokens": 2048,
     }
     
     gemini_client_to_use = st.session_state.gemini_client
@@ -2036,36 +2256,272 @@ def generate_contextual_response(prompt: str, analysis: Dict[str, Any]) -> str:
 
 def process_user_input(new_prompt):
     """Process the user's input after it's been submitted."""
-    if new_prompt:
-        print(f"[DEBUG_TRACE] Processing new prompt: '{new_prompt}'")
-        st.session_state.messages.append({"role": "user", "content": new_prompt})
-
-        if "youtube.com" in new_prompt or "youtu.be" in new_prompt:
-            print(f"[DEBUG_TRACE] Prompt is a URL. Calling analyze_video for: {new_prompt}")
-            analyze_video(new_prompt) 
-            # analyze_video should handle its own state, messages, and reruns.
-            # The save_current_conversation and rerun below will catch any state changes it makes if it doesn't rerun itself.
-        elif "current_analysis" in st.session_state and st.session_state.current_analysis:
-            print("[DEBUG_TRACE] Prompt is a question and current_analysis IS available.")
+    if not new_prompt:
+        # Return early if no input provided
+        return
+        
+    print(f"[DEBUG_TRACE] Processing new prompt: '{new_prompt}'")
+    
+    # Initialize user_message at the beginning to avoid undefined variable errors
+    # This ensures it's available in all code paths
+    user_message = {"role": "user", "content": new_prompt}
+    
+    # Important: DON'T append user message immediately for YouTube URLs with questions
+    # We'll handle that specially if needed
+    
+    # Check for YouTube URLs
+    if "youtube.com" in new_prompt or "youtu.be" in new_prompt:
+        # Extract the YouTube URL from the prompt
+        url_pattern = re.compile(r'(https?://(?:www\.)?(?:youtube\.com|youtu\.be)[^\s]+)')
+        url_match = url_pattern.search(new_prompt)
+        youtube_url = url_match.group(0) if url_match else new_prompt.strip()
+        
+        # Check if there's additional text besides the URL
+        remaining_text = new_prompt.replace(youtube_url, '').strip()
+        
+        if remaining_text:  # There's additional text/question alongside the URL
+            print(f"[DEBUG_TRACE] URL with additional text detected: URL={youtube_url}, Question={remaining_text}")
+            
+            # Check if we already have analysis for this URL
+            already_analyzed = False
+            
+            # Check if current_video_url matches
+            if "current_video_url" in st.session_state and st.session_state.current_video_url == youtube_url:
+                already_analyzed = "current_analysis" in st.session_state and st.session_state.current_analysis
+            
+            # If not current, check conversation history
+            if not already_analyzed:
+                for chat in st.session_state.get("conversation_history", []):
+                    if chat.get("video_url") == youtube_url and chat.get("analysis"):
+                        print(f"[DEBUG_TRACE] Found existing analysis for URL in history")
+                        st.session_state.current_video_url = youtube_url
+                        st.session_state.current_analysis = copy.deepcopy(chat.get("analysis"))
+                        already_analyzed = True
+                        break
+                
+            if already_analyzed:
+                print(f"[DEBUG_TRACE] Using existing analysis for URL: {youtube_url}")
+                
+                # IMPORTANT: Update session state first
+                st.session_state.current_video_url = youtube_url
+                
+                # Remove the original user message (which contained URL + question)
+                st.session_state.messages.pop()
+                
+                # Create user message with just the question and proper metadata
+                user_message = {
+                    "role": "user", 
+                    "content": remaining_text, 
+                    "video_url": youtube_url
+                }
+                st.session_state.messages.append(user_message)
+                
+                # Set up for response generation
+                st.session_state.current_processing_prompt = remaining_text
+                st.session_state.is_generating_response = True
+                
+                # Add thinking indicator with video context
+                thinking_msg = {
+                    "role": "assistant", 
+                    "content": "🤔 Thinking...", 
+                    "type": "thinking_indicator", 
+                    "video_url": youtube_url
+                }
+                st.session_state.messages.append(thinking_msg)
+                
+                # Force save first to ensure context is maintained
+                save_current_conversation()
+                
+                # Set a special flag that we're coming from a URL+question scenario
+                # This flag will survive the rerun and tell the main flow not to analyze the video again
+                st.session_state.url_question_answered = True
+                
+                # Now force a rerun to trigger the response generation part
+                print(f"[DEBUG_TRACE] Forcing rerun for question: {remaining_text}")
+                st.rerun()
+            else:
+                print(f"[DEBUG_TRACE] No existing analysis found, analyzing video: {youtube_url}")
+                analyze_video(youtube_url)
+                # After analysis completes, we'll need to handle the question
+                st.session_state.pending_question = remaining_text
+        else:
+            # Just a URL with no additional text - but first check if we already analyzed it before
+            is_already_analyzed = False
+            
+            # Check if current_video_url matches
+            if "current_video_url" in st.session_state and st.session_state.current_video_url == new_prompt:
+                is_already_analyzed = "current_analysis" in st.session_state and st.session_state.current_analysis
+            
+            # If not current, check conversation history
+            if not is_already_analyzed:
+                for chat in st.session_state.get("conversation_history", []):
+                    if chat.get("video_url") == new_prompt and chat.get("analysis"):
+                        st.session_state.current_video_url = new_prompt
+                        st.session_state.current_analysis = copy.deepcopy(chat.get("analysis"))
+                        is_already_analyzed = True
+                        print(f"[DEBUG_TRACE] Found existing analysis for URL in history: {new_prompt}")
+                        break
+            
+            # Now add user message to chat history with video URL metadata
+            user_message = {"role": "user", "content": new_prompt}
+            if "current_video_url" in st.session_state:
+                user_message["video_url"] = st.session_state.current_video_url
+            st.session_state.messages.append(user_message)
+            
+            if is_already_analyzed:
+                print(f"[DEBUG_TRACE] URL already analyzed, skipping re-analysis: {new_prompt}")
+                # Set up for response generation - no need to reanalyze
+                st.session_state.current_processing_prompt = "Tell me about this video"
+                st.session_state.is_generating_response = True
+                
+                # Add thinking indicator with video context
+                thinking_msg = {
+                    "role": "assistant", 
+                    "content": "🤔 Thinking...", 
+                    "type": "thinking_indicator", 
+                    "video_url": new_prompt
+                }
+                st.session_state.messages.append(thinking_msg)
+                
+                # Force save first to ensure context is maintained
+                save_current_conversation()
+                
+                # Now force a rerun to trigger the response generation part
+                print(f"[DEBUG_TRACE] Forcing rerun to generate response for already analyzed URL")
+                st.rerun()
+            else:
+                # New URL that needs analysis
+                print(f"[DEBUG_TRACE] Prompt is a URL without additional text. Calling analyze_video for: {new_prompt}")
+                analyze_video(new_prompt)
+                # analyze_video should handle its own state, messages, and reruns.
+                # The save_current_conversation and rerun below will catch any state changes it makes if it doesn't rerun itself.
+    elif "current_analysis" in st.session_state and st.session_state.current_analysis:
+        print("[DEBUG_TRACE] Prompt is a question and current_analysis IS available.")
+            
+        # Ensure video context is tracked and attached to the message
+        video_url = st.session_state.get('current_video_url')
+        if video_url:
+            print(f"[DEBUG_TRACE] Video context available: {video_url}")
+            user_message["video_url"] = video_url
+        else:
+            # Try to reconstruct video URL from analysis data if missing
+            if isinstance(st.session_state.current_analysis, dict) and 'video_id' in st.session_state.current_analysis:
+                video_id = st.session_state.current_analysis.get('video_id')
+                if video_id:
+                    reconstructed_url = f"https://www.youtube.com/watch?v={video_id}"
+                    st.session_state.current_video_url = reconstructed_url
+                    print(f"[DEBUG_TRACE] Reconstructed video URL from ID: {reconstructed_url}")
+                    user_message["video_url"] = reconstructed_url
+            
+        # Add the user message if not already added
+        if len(st.session_state.messages) == 0 or st.session_state.messages[-1].get("role") != "user" or st.session_state.messages[-1].get("content") != new_prompt:
+            st.session_state.messages.append(user_message)
+            
+        # Set up for response generation
+        st.session_state.current_processing_prompt = new_prompt
+        st.session_state.is_generating_response = True
+        
+        # Add thinking indicator with video context
+        thinking_msg = {"role": "assistant", "content": "🤔 Thinking...", "type": "thinking_indicator"}
+        if st.session_state.get('current_video_url'):
+            thinking_msg["video_url"] = st.session_state.get('current_video_url')
+            
+        st.session_state.messages.append(thinking_msg)
+        print("[DEBUG_TRACE] Set flags for response generation, appended 'Thinking...'. Will save and rerun.")
+        
+        # Force save and rerun to show the thinking indicator
+        save_current_conversation()
+        st.rerun()
+    else:  # Question, but no current_analysis
+        print("[DEBUG_TRACE] Prompt is a question but current_analysis IS NOT available.")
+        
+        # Try to restore analysis from history using video URL
+        restored = False
+        video_url = None
+        
+        # Check if we have a video URL in the current session state
+        if "current_video_url" in st.session_state and st.session_state.current_video_url:
+            video_url = st.session_state.current_video_url
+            print(f"[DEBUG_TRACE] Found current_video_url in session: {video_url}")
+        else:
+            # Try to find the most recent video URL from the conversation history
+            for msg in reversed(st.session_state.messages):
+                if msg.get("video_url"):
+                    video_url = msg["video_url"]
+                    print(f"[DEBUG_TRACE] Found video_url in message history: {video_url}")
+                    break
+        
+        if video_url:
+            # Try to find the analysis in conversation history
+            for chat in st.session_state.get("conversation_history", []):
+                if chat.get("video_url") == video_url and chat.get("analysis"):
+                    st.session_state.current_video_url = video_url
+                    st.session_state.current_analysis = copy.deepcopy(chat.get("analysis"))
+                    restored = True
+                    print(f"[DEBUG_TRACE] Restored analysis from history for URL: {video_url}")
+                    break
+        
+        if restored:
+            # Successfully restored video context and analysis
+            print("[DEBUG_TRACE] Successfully restored video context and analysis")
+            
+            # Now handle as if analysis was available all along
+            if "current_video_url" in st.session_state:
+                user_message["video_url"] = st.session_state.current_video_url
+            
+            # Append user message if not already added
+            if not st.session_state.messages or st.session_state.messages[-1]["role"] != "user" or st.session_state.messages[-1]["content"] != new_prompt:
+                st.session_state.messages.append(user_message)
+            
+            # Set up for response generation
             st.session_state.current_processing_prompt = new_prompt
             st.session_state.is_generating_response = True
-            st.session_state.messages.append({"role": "assistant", "content": "🤔 Thinking...", "type": "thinking_indicator"})
-            print("[DEBUG_TRACE] Set flags for response generation, appended 'Thinking...'. Will save and rerun.")
-        else: # Question, but no current_analysis
-            print("[DEBUG_TRACE] Prompt is a question but current_analysis IS NOT available.")
-            no_analysis_response = "No current analysis. Please provide a YouTube URL first so I can answer questions about it."
-            st.session_state.messages.append(
-                {"role": "assistant", "content": no_analysis_response, "type": "info"}
-            )
+            
+            # Add thinking indicator with video context
+            thinking_msg = {"role": "assistant", "content": "🤔 Thinking...", "type": "thinking_indicator"}
+            if "current_video_url" in st.session_state:
+                thinking_msg["video_url"] = st.session_state.current_video_url
+            
+            st.session_state.messages.append(thinking_msg)
+            print("[DEBUG_TRACE] Set flags for response generation with restored context. Will save and rerun.")
+            
+            # Force save and rerun to show the thinking indicator
+            save_current_conversation()
+            st.rerun()
+        else:
+            # Could not restore video context
+            print("[DEBUG_TRACE] Could not restore video context or analysis")
+            
+            # Add user message to history if not already added
+            if not st.session_state.messages or st.session_state.messages[-1]["role"] != "user" or st.session_state.messages[-1]["content"] != new_prompt:
+                st.session_state.messages.append(user_message)
+            
+            # Inform user they need to provide a video URL first
+            no_analysis_response = "I can help analyze YouTube videos. Please provide a YouTube URL first, then ask your question."
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": no_analysis_response,
+                "type": "info"
+            })
             logger.debug(f"[DEBUG_TRACE] Appended 'no analysis' message: {no_analysis_response[:100]}...")
-
-        # Common save and rerun for all new prompt scenarios.
-        save_current_conversation()
-        print(f"[DEBUG_TRACE] First pass: Conversation saved. Rerunning. Messages count: {len(st.session_state.messages)}")
-        st.rerun()
+            
+            # Save and rerun
+            save_current_conversation()
+            print(f"[DEBUG_TRACE] First pass: Conversation saved. Rerunning. Messages count: {len(st.session_state.messages)}")
+            st.rerun()
 
 def handle_user_input():
     """Handle user input and generate responses."""
+    # This function no longer handles new user inputs from the chat input box
+    # It only manages the ongoing response generation process
+    # New inputs are now handled directly in the main function
+    
+    # Check if we're handling a follow-up question to an already analyzed URL
+    if st.session_state.get("url_question_answered", False):
+        print("[DEBUG_TRACE] URL+question flag detected. Bypassing video analysis and proceeding to answer")
+        # Clear the flag so it doesn't affect future interactions
+        st.session_state.url_question_answered = False
+        
     # Part 1: Check for and handle ongoing response generation
     if st.session_state.get("is_generating_response", False) and st.session_state.get("current_processing_prompt"):
         print("[DEBUG_TRACE] Second pass: is_generating_response is True and current_processing_prompt exists.")
@@ -2124,9 +2580,20 @@ def handle_user_input():
             st.session_state.messages.pop()
             print("[DEBUG_TRACE] Popped 'Thinking...' message.")
         
-        st.session_state.messages.append(
-            {"role": "assistant", "content": cleaned_response, "type": "contextual_response"}
-        )
+        # Add video context to the response message if available
+        response_message = {
+            "role": "assistant", 
+            "content": cleaned_response, 
+            "type": "contextual_response"
+        }
+        
+        # Attach video URL to the response for context tracking
+        video_url = st.session_state.get('current_video_url')
+        if video_url:
+            response_message['video_url'] = video_url
+            print(f"[DEBUG_TRACE] Added video URL to response: {video_url}")
+            
+        st.session_state.messages.append(response_message)
         logger.debug(f"[DEBUG_TRACE] Appended final assistant message: {cleaned_response[:100]}...")
         
         st.session_state.is_generating_response = False
@@ -2145,21 +2612,71 @@ def handle_user_input():
         # Instead of returning early, we'll continue to render the input box
         # but we'll ignore any inputs that might have carried over
     
-    # User's own message is appended here, but displayed by display_chat on rerun.
-    if new_prompt := st.chat_input("Paste a YouTube URL or ask a question...", key="chat_input"):
-        print(f"[DEBUG_TRACE] First pass: New prompt received: '{new_prompt}'")
-        st.session_state.messages.append({"role": "user", "content": new_prompt})
-
+    # This functionality has been moved to the main function
+    # DO NOT process new prompts here to avoid duplicate chat inputs
+    if False:  # This condition ensures this code never runs
+        print(f"[DEBUG_TRACE] This code block is disabled to prevent duplicate input boxes")
+        
+        # The following code is kept for reference but never executes
+        user_message = {"role": "user", "content": "example"}
+        
+        # For follow-up questions, preserve video context from session state
+        if "current_video_url" in st.session_state and st.session_state.current_video_url and not ("youtube.com" in new_prompt or "youtu.be" in new_prompt):
+            print(f"[DEBUG_TRACE] Adding existing video context to message: {st.session_state.current_video_url}")
+            user_message["video_url"] = st.session_state.current_video_url
+        
         if "youtube.com" in new_prompt or "youtu.be" in new_prompt:
-            print(f"[DEBUG_TRACE] Prompt is a URL. Calling analyze_video for: {new_prompt}")
-            analyze_video(new_prompt) 
-            # analyze_video should handle its own state, messages, and reruns.
-            # The save_current_conversation and rerun below will catch any state changes it makes if it doesn't rerun itself.
+            # Check for our special flag that indicates we've already handled this URL+question
+            if st.session_state.get("url_question_answered"):
+                print(f"[DEBUG_TRACE] Found url_question_answered flag. Skipping re-analysis and proceeding to answer the question.")
+                # Clear the flag as we're handling it now
+                st.session_state.url_question_answered = False
+                # The message is already in session state from the previous step, so just continue below
+                # The current_video_url and current_analysis are already set
+            else:
+                # Track video URL in session state for context persistence
+                print(f"[DEBUG_TRACE] Prompt contains URL. Setting current_video_url and analyzing...")
+                st.session_state.current_video_url = new_prompt
+                user_message["video_url"] = new_prompt  # Add to message metadata
+                
+                # Append message and analyze
+                st.session_state.messages.append(user_message)
+                analyze_video(new_prompt) 
+                # analyze_video should handle its own state, messages, and reruns.
+                # The save_current_conversation and rerun below will catch any state changes if needed.
         elif "current_analysis" in st.session_state and st.session_state.current_analysis:
             print("[DEBUG_TRACE] Prompt is a question and current_analysis IS available.")
+            
+            # Ensure video context is tracked properly
+            if "current_video_url" in st.session_state and st.session_state.current_video_url:
+                print(f"[DEBUG_TRACE] Video context available: {st.session_state.current_video_url}")
+            else:
+                # Try to reconstruct video URL from analysis if missing
+                if isinstance(st.session_state.current_analysis, dict) and "video_id" in st.session_state.current_analysis:
+                    video_id = st.session_state.current_analysis.get("video_id")
+                    if video_id:
+                        reconstructed_url = f"https://www.youtube.com/watch?v={video_id}"
+                        st.session_state.current_video_url = reconstructed_url
+                        print(f"[DEBUG_TRACE] Reconstructed video URL from analysis: {reconstructed_url}")
+            
+            # Add the user message with video context if available
+            if "current_video_url" in st.session_state and st.session_state.current_video_url:
+                user_message["video_url"] = st.session_state.current_video_url
+            
+            # Append user message if not added yet
+            if not st.session_state.messages or st.session_state.messages[-1]["role"] != "user" or st.session_state.messages[-1]["content"] != new_prompt:
+                st.session_state.messages.append(user_message)
+            
+            # Set up for response generation
             st.session_state.current_processing_prompt = new_prompt
             st.session_state.is_generating_response = True
-            st.session_state.messages.append({"role": "assistant", "content": "🤔 Thinking...", "type": "thinking_indicator"})
+            
+            # Add thinking indicator with video context
+            thinking_msg = {"role": "assistant", "content": "🤔 Thinking...", "type": "thinking_indicator"}
+            if "current_video_url" in st.session_state and st.session_state.current_video_url:
+                thinking_msg["video_url"] = st.session_state.current_video_url
+            
+            st.session_state.messages.append(thinking_msg)
             print("[DEBUG_TRACE] Set flags for response generation, appended 'Thinking...'. Will save and rerun.")
         else: # Question, but no current_analysis
             print("[DEBUG_TRACE] Prompt is a question but current_analysis IS NOT available.")
@@ -2189,6 +2706,69 @@ def analyze_video(video_url: str):
     Args:
         video_url (str): URL of the YouTube video to analyze
     """
+    # First check if this video has already been analyzed
+    already_analyzed = False
+    
+    # First check current session state
+    if "current_video_url" in st.session_state and "current_analysis" in st.session_state and st.session_state.current_analysis:
+        if st.session_state.current_video_url == video_url:
+            already_analyzed = True
+            print(f"[DEBUG_TRACE] Video already analyzed in current session, skipping re-analysis: {video_url}")
+    
+    # Then check conversation history if not found in current session
+    if not already_analyzed and "conversation_history" in st.session_state:
+        for chat in st.session_state.conversation_history:
+            # Check chat video URL
+            if chat.get("video_url") == video_url and chat.get("analysis"):
+                already_analyzed = True
+                st.session_state.current_video_url = video_url
+                st.session_state.current_analysis = copy.deepcopy(chat.get("analysis"))
+                print(f"[DEBUG_TRACE] Found existing analysis in chat history, using that instead: {video_url}")
+                break
+            
+            # Also check individual messages for video URLs
+            if not already_analyzed and chat.get("messages"):
+                for msg in chat.get("messages", []):
+                    if msg.get("video_url") == video_url and chat.get("analysis"):
+                        already_analyzed = True
+                        st.session_state.current_video_url = video_url
+                        st.session_state.current_analysis = copy.deepcopy(chat.get("analysis"))
+                        print(f"[DEBUG_TRACE] Found existing analysis in message history, using that instead: {video_url}")
+                        break
+    
+    # If we found existing analysis, handle any pending questions and skip re-analyzing
+    if already_analyzed:
+        # If there's a pending question, handle it now
+        if "pending_question" in st.session_state and st.session_state.pending_question:
+            question = st.session_state.pending_question
+            # Clear the pending question
+            st.session_state.pending_question = None
+            print(f"[DEBUG_TRACE] Processing pending question: {question}")
+            
+            # Add the question as a separate user message
+            st.session_state.messages.append({
+                "role": "user", 
+                "content": question,
+                "video_url": video_url
+            })
+            
+            # Set up for response generation
+            st.session_state.current_processing_prompt = question
+            st.session_state.is_generating_response = True
+            
+            # Add thinking indicator with video context
+            thinking_msg = {
+                "role": "assistant", 
+                "content": "🤔 Thinking...", 
+                "type": "thinking_indicator",
+                "video_url": video_url
+            }
+            st.session_state.messages.append(thinking_msg)
+            
+            # Save conversation and rerun to trigger response generation
+            save_current_conversation()
+            st.rerun()
+        return  # Skip analysis if video already analyzed
     
     with st.chat_message("assistant"):
         with st.spinner("🔍 Analyzing video..."):
@@ -2232,6 +2812,7 @@ def analyze_video(video_url: str):
                 # Combine all results
                 complete_analysis = {
                     "video_id": analysis_result["video_id"],
+                    "video_url": video_url,  # Store the original URL for context preservation
                     "metadata": analysis_result["metadata"],
                     "analysis": analysis_result["analysis"],
                     "scores": score_result,
@@ -2277,6 +2858,10 @@ def analyze_video(video_url: str):
                 st.session_state.analysis = copy.deepcopy(complete_analysis)
                 st.session_state.current_analysis = copy.deepcopy(complete_analysis)
                 
+                # Track video URL for context maintenance
+                st.session_state.current_video_url = video_url
+                logger.info(f"Set current_video_url to: {video_url}")
+                
                 # Verify the stored analysis maintains its structure
                 if 'analysis' in st.session_state:
                     print(f"Verified: Analysis stored with type: {type(st.session_state.analysis)}")
@@ -2315,9 +2900,68 @@ def analyze_video(video_url: str):
                 response += f"**Channel**: {channel}\n\n"
                 response += f"**Duration**: {duration}\n\n"
                 response += f"**Published**: {published_date}\n\n"
-                response += f"**Views**: {analysis_result['metadata'].get('view_count', 'Unknown')}\n\n"
-                response += f"**Comments**: {comment_count}\n\n"
-                response += f"**Overall Score**: {score_result.get('overall_score', 'N/A')}/5\n\n"
+                
+                # Format view count with commas for thousands - Force string formatting 
+                view_count = analysis_result['metadata'].get('view_count', 'Unknown')
+                if isinstance(view_count, (int, float)):
+                    # Use formatted string with commas
+                    view_count_str = f"{int(view_count):,}"
+                    print(f"[analyze_video] Formatted view count: {view_count} -> {view_count_str}")
+                    response += f"**Views**: {view_count_str}\n\n"
+                else:
+                    response += f"**Views**: {view_count}\n\n"
+                
+                # Format like count with commas - Force string formatting
+                like_count = analysis_result['metadata'].get('like_count', 'Unknown')
+                if isinstance(like_count, (int, float)):
+                    # Use formatted string with commas
+                    like_count_str = f"{int(like_count):,}"
+                    print(f"[analyze_video] Formatted like count: {like_count} -> {like_count_str}")
+                    response += f"**Likes**: {like_count_str}\n\n"
+                else:
+                    response += f"**Likes**: {like_count}\n\n"
+                
+                # Format comment count with commas - Force string formatting
+                if isinstance(comment_count, (int, float)):
+                    # Use formatted string with commas
+                    comment_count_str = f"{int(comment_count):,}"
+                    print(f"[analyze_video] Formatted comment count: {comment_count} -> {comment_count_str}")
+                    response += f"**Comments**: {comment_count_str}\n\n"
+                else:
+                    response += f"**Comments**: {comment_count}\n\n"
+                # Use the same overall score calculation as in the analysis section
+                if 'factors' in score_result:
+                    factors = score_result['factors']
+                    available_scores = []
+                    
+                    # Get scores from all factors - same logic as in display_analysis_results
+                    performance_categories = [
+                        {"key": "hook_quality"},
+                        {"key": "seo_optimization"},
+                        {"key": "content_quality"},
+                        {"key": "engagement_metrics"},
+                        {"key": "technical_quality"}
+                    ]
+                    
+                    for category in performance_categories:
+                        factor_key = category["key"]
+                        if factor_key in factors and "score" in factors[factor_key]:
+                            try:
+                                score_value = min(5.0, float(factors[factor_key]["score"]))
+                                available_scores.append(score_value)
+                            except (ValueError, TypeError):
+                                pass
+                    
+                    # Calculate overall score using the same method as display_analysis_results
+                    if available_scores:
+                        computed_overall_score = sum(available_scores) / len(available_scores)
+                        overall_score = min(5.0, round(computed_overall_score, 1))
+                    else:
+                        overall_score = min(5.0, float(score_result.get('overall_score', 0)))
+                else:
+                    overall_score = score_result.get('overall_score', 'N/A')
+                    
+                response += f"**Overall Score**: {overall_score}/5\n\n"
 
                 # Add top 3 recommendations
                 response += "### 💡 Top Recommendations:\n"
@@ -2332,18 +2976,45 @@ def analyze_video(video_url: str):
                 )
                 response += "*Ask follow-up questions about this video in the chat!*"
 
-                # Add analysis to chat
-                st.markdown(response)
+                # Run the format_numbers_with_commas function for consistent formatting
+                formatted_response = format_numbers_with_commas(response)
+                
+                # Additional safety check: directly scan for numbers to format in key metrics
+                import re
+                for metric in ['Views', 'Likes', 'Comments']:
+                    pattern = f"\*\*{metric}\*\*: (\d+)"
+                    matches = re.finditer(pattern, formatted_response)
+                    for match in matches:
+                        try:
+                            num_str = match.group(1)
+                            if ',' not in num_str:  # Only format if commas aren't already there
+                                formatted_num = f"{int(num_str):,}"
+                                old_text = f"**{metric}**: {num_str}"
+                                new_text = f"**{metric}**: {formatted_num}"
+                                formatted_response = formatted_response.replace(old_text, new_text)
+                                print(f"[analyze_video] Forced metric formatting: {old_text} -> {new_text}")
+                        except Exception as e:
+                            print(f"[analyze_video] Error formatting {metric}: {str(e)}")
+                
+                # Log the formatted response for debugging
+                print(f"[analyze_video] Final formatted response before adding to chat history: {formatted_response[:100]}...")
 
-                # Add to messages
+                # Add formatted analysis to chat UI - this is what the user will see immediately
+                st.markdown(formatted_response)
+                
+                # Add to session state messages with the properly formatted response
+                # This ensures formatting is preserved in the chat history
                 st.session_state.messages.append(
                     {
                         "role": "assistant",
-                        "content": response,
+                        "content": formatted_response,
                         "video_url": video_url,
                         "type": "video_analysis",
                     }
                 )
+                
+                # Save the conversation to persist the formatted message
+                save_current_conversation()
 
                 # Print debug information
                 print(
@@ -2356,6 +3027,36 @@ def analyze_video(video_url: str):
 
                 # Save the conversation to history immediately after analysis is complete
                 save_current_conversation()
+                
+                # Check if there's a pending question to answer after analysis
+                if "pending_question" in st.session_state and st.session_state.pending_question:
+                    print(f"[DEBUG_TRACE] Found pending question after analysis: {st.session_state.pending_question}")
+                    question = st.session_state.pending_question
+                    # Clear the pending question to avoid processing it multiple times
+                    st.session_state.pending_question = None
+                    
+                    # Add the user's question as a new message
+                    question_message = {
+                        "role": "user", 
+                        "content": question,
+                        "video_url": video_url
+                    }
+                    st.session_state.messages.append(question_message)
+                    
+                    # Add thinking indicator
+                    st.session_state.messages.append({
+                        "role": "assistant", 
+                        "content": "🤔 Thinking...", 
+                        "type": "thinking_indicator",
+                        "video_url": video_url
+                    })
+                    
+                    # Set up for response generation
+                    st.session_state.current_processing_prompt = question
+                    st.session_state.is_generating_response = True
+                    
+                    # Save state before rerunning
+                    save_current_conversation()
                 
                 # Force UI update to refresh the sidebar with the new analysis
                 st.rerun()
@@ -2373,10 +3074,65 @@ def analyze_video(video_url: str):
                 )
 
 
+def reformat_existing_messages():
+    """Apply number formatting to all existing messages in session state."""
+    if "messages" not in st.session_state:
+        print("[reformat] No messages in session state")
+        return
+        
+    # Get all messages
+    messages = st.session_state.messages
+    print(f"[reformat] Found {len(messages)} messages in session state")
+    
+    # Loop through messages and reformat content
+    changes_made = False
+    for i, message in enumerate(messages):
+        if message.get("role") == "assistant" and "content" in message:
+            # Apply formatting to the content
+            content = message["content"]
+            print(f"[reformat] Processing message {i}: {content[:50]}...")
+            
+            # Format numbers in the content
+            formatted_content = format_numbers_with_commas(content)
+            
+            # Update the message content
+            if formatted_content != content:
+                print(f"[reformat] Updated message {i} with formatted numbers")
+                messages[i]["content"] = formatted_content
+                changes_made = True
+    
+    # Update session state only if changes were made
+    if changes_made:
+        print("[reformat] Updating session state with reformatted messages")
+        st.session_state.messages = messages
+        
+        # Also update the conversation history to persist the changes
+        print("[reformat] Saving changes to conversation history")
+        save_current_conversation()
+    else:
+        print("[reformat] No formatting changes were needed")
+        
+    # Force re-display of messages if needed
+    if changes_made:
+        try:
+            st.rerun()
+        except AttributeError:
+            # Fallback for older Streamlit versions
+            try:
+                st.experimental_rerun()
+            except:
+                # If neither method works, just continue without rerunning
+                print("[reformat] Could not force rerun - continuing without refresh")
+                pass
+
 def main():
     """Main function to run the Streamlit app."""
-    # Setup
+    load_chat_history()
     init_session_state()
+    
+    # Apply formatting to existing messages
+    reformat_existing_messages()
+    
     setup_ui()
 
     # Create tabs for chat and analysis
@@ -2385,7 +3141,18 @@ def main():
     # Display chat in the Chat tab
     with tab1:
         display_chat()
-        handle_user_input() # Call to render chat input box and handle its logic
+        
+        # Handle user input with the chat input box
+        user_prompt = st.chat_input("Paste a YouTube URL or ask a question...")
+        
+        # Only process user input if something was entered and we're not mid-processing
+        if user_prompt and not st.session_state.get("is_generating_response", False):
+            # Process the user input - this now handles URL detection and manages url_question_answered flag
+            process_user_input(user_prompt)
+        
+        # Always call handle_user_input to manage ongoing response generation
+        # This function will check the url_question_answered flag and other state variables
+        handle_user_input()
 
     # Add a debug message to verify the app is running properly
     st.sidebar.caption(f"Last app refresh: {datetime.now().strftime('%H:%M:%S')}")
