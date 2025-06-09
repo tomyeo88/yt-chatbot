@@ -855,8 +855,8 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
     st.markdown("### 💬 Title Analysis")
     with st.expander("View Title Analysis Details", expanded=False):
         if title_analysis:
-            # Check for error in title analysis
-            if isinstance(title_analysis, dict) and "error" in title_analysis:
+            # Check for error in title analysis - only if error has a non-null value
+            if isinstance(title_analysis, dict) and "error" in title_analysis and title_analysis["error"] is not None:
                 st.warning(f"Error in title analysis: {title_analysis['error']}")
 
                 # Try to get title information from metadata
@@ -2354,8 +2354,11 @@ def analyze_video(video_url: str):
                 )
                 print(f"Current analysis set and ready for contextual responses")
 
-                # Don't rerun here - let the display_chat function handle the rerun
-                # This prevents double reruns when processing YouTube URLs
+                # Save the conversation to history immediately after analysis is complete
+                save_current_conversation()
+                
+                # Force UI update to refresh the sidebar with the new analysis
+                st.rerun()
 
             except Exception as e:
                 error_msg = f"Error analyzing video: {str(e)}"

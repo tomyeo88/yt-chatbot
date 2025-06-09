@@ -199,18 +199,12 @@ class VideoAnalyzer:
 
             # Generate title analysis
             title_analysis = self._analyze_title(processed_metadata)
-            if title_analysis and "error" not in title_analysis:
-                analysis["title_analysis"] = title_analysis
-                logger.info(
-                    f"Title analysis generated successfully with sections: {title_analysis.keys()}"
-                )
+            analysis["title_analysis"] = title_analysis  # Always add to analysis, even if there was an error
+            
+            if title_analysis:
+                logger.info(f"Title analysis generated with sections: {title_analysis.keys()}")
             else:
-                error = (
-                    title_analysis.get("error", "Unknown error")
-                    if title_analysis
-                    else "No analysis returned"
-                )
-                logger.error(f"Error generating title analysis: {error}")
+                logger.error("No title analysis returned")
 
             # Generate thumbnail analysis if we have thumbnail data
             if thumbnail_data and thumbnail_data.get("image_bytes"):
@@ -253,6 +247,20 @@ class VideoAnalyzer:
                 elif "analysis" not in gemini_full_response: # Check if 'analysis' key is missing from gemini_full_response
                     logger.warning(f"Gemini response in _analyze_with_gemini did not contain an 'analysis' sub-dictionary as expected. Keys found: {list(gemini_full_response.keys())}")
 
+            # Generate dedicated audience engagement and SEO analyses if not already present
+            # These separate analyses ensure consistent structure and robust parsing
+            if "audience_engagement" not in analysis:
+                audience_engagement = self._analyze_audience_engagement(processed_metadata)
+                if audience_engagement and "error" not in audience_engagement:
+                    analysis["audience_engagement"] = audience_engagement
+                    logger.info(f"Audience engagement analysis generated successfully with sections: {audience_engagement.keys()}")
+
+            if "seo_optimization" not in analysis:
+                seo_optimization = self._analyze_seo_optimization(processed_metadata)
+                if seo_optimization and "error" not in seo_optimization:
+                    analysis["seo_optimization"] = seo_optimization
+                    logger.info(f"SEO optimization analysis generated successfully with sections: {seo_optimization.keys()}")
+
             # Combine all results into a single dictionary
             result = {
                 "video_id": video_id,
@@ -263,9 +271,9 @@ class VideoAnalyzer:
             # Add title analysis directly to the top level for easier access
             if title_analysis and isinstance(title_analysis, dict):
                 result["title_analysis"] = title_analysis
-                # Also include in analysis for consistency
+                # Make sure it's also in the analysis sub-dictionary
                 result["analysis"]["title_analysis"] = title_analysis
-                logger.info("Added title analysis to result")
+                logger.info("Added title analysis to result at top level and in analysis section")
 
             # Add thumbnail analysis directly to the top level for easier access
             if thumbnail_analysis and isinstance(thumbnail_analysis, dict):
@@ -473,7 +481,31 @@ class VideoAnalyzer:
         try:
             title = metadata.get("title", "")
             if not title:
-                return {"error": "No title available for analysis"}
+                return {
+                    "effectiveness": "Not analyzed - No title provided",
+                    "keywords": "Not analyzed - No title provided",
+                    "length": "Not analyzed - No title provided",
+                    "clickability": "Not analyzed - No title provided",
+                    "ctr_impact": "Not analyzed - No title provided",
+                    "score": 0.0,
+                    "recommendations": []
+                }
+
+            # Define default structure for title analysis
+            DEFAULT_TITLE_ANALYSIS = {
+                "effectiveness": "Not analyzed",
+                "keywords": "Not analyzed",
+                "length": "Not analyzed",
+                "clickability": "Not analyzed",
+                "ctr_impact": "Not analyzed",
+                "score": 3.0,  # Default middle score
+                "recommendations": [],
+                "error": None,
+                "details": None,
+                "raw_response": None,
+                "response_text": None,
+                "json_content": None,
+            }
 
             # Build prompt for title analysis with structured recommendations format
             prompt = f"""
@@ -513,124 +545,42 @@ class VideoAnalyzer:
             # Get analysis from Gemini
             logger.info("Sending title analysis prompt to Gemini")
             response = self.gemini_client.generate_content(prompt)
-
-            # Check if response is valid and has text content
-            if (
-                response
-                and isinstance(response, dict)
-                and "text" in response
-                and "error" not in response
-            ):
-                # Parse the response - expecting JSON format
-                try:
-                    import json
-
-                    # Extract JSON from the response text
-                    response_text = response["text"]
-                    logger.info(
-                        f"Received title analysis response of length: {len(response_text)}"
-                    )
-
-                    # Try to find JSON in markdown code blocks
-                    if "```json" in response_text:
-                        json_content = (
-                            response_text.split("```json")[1].split("```")[0].strip()
-                        )
-                        logger.info("Extracted JSON from code block with json tag")
-                    elif "```" in response_text:
-                        json_content = (
-                            response_text.split("```")[1].split("```")[0].strip()
-                        )
-                        logger.info("Extracted JSON from generic code block")
-                    else:
-                        # Try to find JSON-like content in the text
-                        if response_text.strip().startswith(
-                            "{"
-                        ) and response_text.strip().endswith("}"):
-                            json_content = response_text.strip()
-                            logger.info("Using full response as JSON")
-                        else:
-                            # Last resort: try to extract anything that looks like JSON
-                            import re
-
-                            json_match = re.search(r"\{[^}]*\}", response_text)
-                            if json_match:
-                                json_content = json_match.group(0)
-                                logger.info("Extracted JSON using regex pattern")
-                            else:
-                                # If no JSON found, create a simple analysis
-                                logger.warning(
-                                    "No JSON structure found in response, creating simple analysis"
-                                )
-                                return {
-                                    "analysis": response_text,
-                                    "score": 3.0,
-                                    "recommendations": [
-                                        "Consider revising the title for better engagement"
-                                    ],
-                                }
-
-                    # Parse the JSON content
-                    title_analysis = json.loads(json_content)
-                    logger.info(
-                        f"Successfully parsed title analysis with keys: {title_analysis.keys()}"
-                    )
-
-                    # Log the recommendations format for debugging
-                    if "recommendations" in title_analysis:
-                        logger.info(
-                            f"Title recommendations format: {json.dumps(title_analysis['recommendations'][:1], indent=2)}"
-                        )
-
-                        # Check if recommendations are in the new format
-                        if title_analysis["recommendations"] and isinstance(
-                            title_analysis["recommendations"], list
-                        ):
-                            sample_rec = title_analysis["recommendations"][0]
-                            if isinstance(sample_rec, dict):
-                                has_new_format = all(
-                                    key in sample_rec
-                                    for key in ["action", "suggestion", "justification"]
-                                )
-                                logger.info(
-                                    f"Using new recommendation format: {has_new_format}"
-                                )
-                            else:
-                                logger.info(
-                                    "Recommendation is not a dictionary, using legacy format parsing"
-                                )
-
-                    # Ensure score is within 1-5 range
-                    if "score" in title_analysis:
-                        title_analysis["score"] = min(
-                            5.0, max(1.0, float(title_analysis["score"]))
-                        )
-                    else:
-                        title_analysis["score"] = 3.0  # Default score
-
-                    return title_analysis
-
-                except Exception as e:
-                    logger.error(f"Error parsing title analysis response: {str(e)}")
-                    # If JSON parsing fails, return a structured analysis with the raw text
-                    return {
-                        "analysis": response["text"],
-                        "score": 3.0,
-                        "error": f"JSON parsing failed: {str(e)}",
-                    }
+            
+            # Use the robust parser to handle various response formats
+            title_analysis = self._robust_json_parser(
+                response, 
+                DEFAULT_TITLE_ANALYSIS,
+                "TitleAnalysisParser"
+            )
+            
+            # Log successful parsing or any errors
+            if title_analysis.get("error"):
+                logger.error(f"Error parsing title analysis: {title_analysis['error']}")
             else:
-                # Handle error in response
-                if response and isinstance(response, dict):
-                    error = response.get("error", "Unknown error")
-                else:
-                    error = "Invalid response format or no response"
-
-                logger.error(f"Error from Gemini for title analysis: {error}")
-                return {"error": error}
+                logger.info(f"Successfully processed title analysis with score: {title_analysis.get('score', 'N/A')}")
+            
+            # Remove debugging fields before returning
+            for debug_field in ["raw_response", "response_text", "json_content", "details", "error"]:
+                if debug_field in title_analysis:
+                    title_analysis.pop(debug_field, None)
+                    
+            # Ensure we have a recommendations array even if it's empty
+            if not title_analysis.get("recommendations"):
+                title_analysis["recommendations"] = []
+                
+            return title_analysis
 
         except Exception as e:
             logger.error(f"Error in title analysis: {str(e)}")
-            return {"error": f"Title analysis failed: {str(e)}"}
+            return {
+                "effectiveness": "Analysis failed",
+                "keywords": "Analysis failed",
+                "length": "Analysis failed",
+                "clickability": "Analysis failed",
+                "ctr_impact": "Analysis failed",
+                "score": 0.0,
+                "recommendations": []
+            }
 
     def _analyze_thumbnail(
         self, thumbnail_data: Dict[str, Any], metadata: Dict[str, Any]
@@ -717,6 +667,356 @@ class VideoAnalyzer:
                 "error": f"Error analyzing thumbnail with Gemini: {str(e)}",
                 "raw_response": "Analysis failed",
             }
+
+    def _analyze_audience_engagement(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Analyze audience engagement metrics for the video using Gemini.
+
+        Args:
+            metadata: Video metadata including title, description, view count, etc.
+
+        Returns:
+            Dictionary with audience engagement analysis results including score and recommendations
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        try:
+            # Define a default structure for audience engagement analysis results
+            DEFAULT_AUDIENCE_ENGAGEMENT = {
+                "score": 0.0,
+                "summary": "",
+                "engagement_metrics": {
+                    "view_retention": "",
+                    "viewer_interaction": "", 
+                    "community_building": ""
+                },
+                "strengths": [],
+                "weaknesses": [],
+                "recommendations": []
+            }
+
+            # Build prompt for audience engagement analysis
+            title = metadata.get("title", "Unknown")
+            description = metadata.get("description", "")
+            view_count = metadata.get("view_count", "0")
+            like_count = metadata.get("like_count", "0")
+            comment_count = metadata.get("comment_count", "0")
+            engagement_ratio = "0"
+            
+            if view_count and int(view_count) > 0:
+                likes = int(like_count) if like_count else 0
+                comments = int(comment_count) if comment_count else 0
+                engagement_ratio = str(round(((likes + comments) / int(view_count)) * 100, 2))
+            
+            prompt = f"""
+            Analyze the audience engagement metrics for this YouTube video:
+            Title: "{title}"
+            Description: "{description}"
+            Views: {view_count}
+            Likes: {like_count}
+            Comments: {comment_count}
+            Calculated Engagement Ratio: {engagement_ratio}%
+            
+            Please provide a comprehensive analysis of audience engagement including:
+            1. Overall engagement score (0-5 with one decimal)
+            2. Analysis of view retention potential
+            3. Analysis of viewer interaction (likes, comments, shares)
+            4. Community building aspects
+            5. Key strengths in audience engagement
+            6. Notable weaknesses in audience engagement
+            7. Specific recommendations to improve engagement
+            
+            Format your response as a JSON object with these keys:
+            - score: number from 0-5 with one decimal
+            - summary: brief overall assessment
+            - engagement_metrics: object with view_retention, viewer_interaction, and community_building keys
+            - strengths: array of strength points
+            - weaknesses: array of weakness points
+            - recommendations: array of specific actionable recommendations
+            """
+            
+            logger.info(f"Generating audience engagement analysis for video: {title}")
+            response = self.gemini_client.generate_content(prompt)
+            logger.debug(f"Raw audience engagement analysis response received")
+            
+            # Use the robust json parser to handle the response
+            audience_engagement = self._robust_json_parser(
+                response,
+                DEFAULT_AUDIENCE_ENGAGEMENT,
+                parser_name="AudienceEngagementParser"
+            )
+            
+            # Check for successful parsing
+            if "error" in audience_engagement and audience_engagement["error"] is not None:
+                logger.error(f"Audience engagement analysis parsing failed: {audience_engagement['error']}")
+                return audience_engagement
+                
+            # Clean up debug fields before returning
+            if "raw_response" in audience_engagement:
+                del audience_engagement["raw_response"]
+            if "response_text" in audience_engagement:
+                del audience_engagement["response_text"]
+            if "json_content" in audience_engagement:
+                del audience_engagement["json_content"]
+            if "details" in audience_engagement:
+                del audience_engagement["details"]
+                
+            logger.info("Successfully parsed audience engagement analysis")
+            return audience_engagement
+
+        except Exception as e:
+            logger.error(f"Error in audience engagement analysis: {str(e)}")
+            return {"error": f"Audience engagement analysis failed: {str(e)}"}
+
+    def _analyze_seo_optimization(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Analyze SEO optimization for the video using Gemini.
+
+        Args:
+            metadata: Video metadata including title, description, tags, etc.
+
+        Returns:
+            Dictionary with SEO analysis results including score and recommendations
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        try:
+            # Define a default structure for SEO analysis results
+            DEFAULT_SEO_OPTIMIZATION = {
+                "score": 0.0,
+                "summary": "",
+                "keyword_analysis": {
+                    "primary_keywords": [],
+                    "secondary_keywords": [],
+                    "missing_keywords": []
+                },
+                "metadata_optimization": {
+                    "title": "",
+                    "description": "",
+                    "tags": ""
+                },
+                "strengths": [],
+                "weaknesses": [],
+                "recommendations": []
+            }
+
+            # Build prompt for SEO analysis
+            title = metadata.get("title", "Unknown")
+            description = metadata.get("description", "")
+            tags = metadata.get("tags", [])
+            tags_str = ", ".join(tags) if tags else "No tags"
+            
+            prompt = f"""
+            Analyze the SEO optimization for this YouTube video:
+            Title: "{title}"
+            Description: "{description}"
+            Tags: {tags_str}
+            
+            Please provide a comprehensive SEO analysis including:
+            1. Overall SEO score (0-5 with one decimal)
+            2. Primary and secondary keywords identified (or missing)
+            3. Title optimization assessment 
+            4. Description optimization assessment
+            5. Tag optimization assessment
+            6. Key SEO strengths
+            7. Notable SEO weaknesses
+            8. Specific recommendations to improve SEO
+            
+            Format your response as a JSON object with these keys:
+            - score: number from 0-5 with one decimal
+            - summary: brief overall assessment
+            - keyword_analysis: object with primary_keywords, secondary_keywords, and missing_keywords arrays
+            - metadata_optimization: object with title, description, and tags assessment
+            - strengths: array of strength points
+            - weaknesses: array of weakness points
+            - recommendations: array of specific actionable recommendations
+            """
+            
+            logger.info(f"Generating SEO optimization analysis for video: {title}")
+            response = self.gemini_client.generate_content(prompt)
+            logger.debug(f"Raw SEO optimization analysis response received")
+            
+            # Use the robust json parser to handle the response
+            seo_optimization = self._robust_json_parser(
+                response,
+                DEFAULT_SEO_OPTIMIZATION,
+                parser_name="SEOOptimizationParser"
+            )
+            
+            # Check for successful parsing
+            if "error" in seo_optimization and seo_optimization["error"] is not None:
+                logger.error(f"SEO optimization analysis parsing failed: {seo_optimization['error']}")
+                return seo_optimization
+                
+            # Clean up debug fields before returning
+            if "raw_response" in seo_optimization:
+                del seo_optimization["raw_response"]
+            if "response_text" in seo_optimization:
+                del seo_optimization["response_text"]
+            if "json_content" in seo_optimization:
+                del seo_optimization["json_content"]
+            if "details" in seo_optimization:
+                del seo_optimization["details"]
+                
+            logger.info("Successfully parsed SEO optimization analysis")
+            return seo_optimization
+
+        except Exception as e:
+            logger.error(f"Error in SEO optimization analysis: {str(e)}")
+            return {"error": f"SEO optimization analysis failed: {str(e)}"}
+
+    def _robust_json_parser(self, response, default_structure, parser_name="GenericParser"):
+        """
+        Generic robust JSON parser for Gemini AI responses.
+        
+        Handles various response formats:
+        - dicts with 'text' key (code block or plain JSON)
+        - plain string (code block, JSON, or markdown)
+        - error dicts (from MCP or internal errors)
+        
+        Args:
+            response: Gemini response object (dict, string, etc.)
+            default_structure: Default structure to use for missing fields
+            parser_name: Name of parser for logging
+            
+        Returns:
+            Dictionary with parsed content and appropriate defaults
+        """
+        import logging
+        import re
+        import json
+        import copy
+        
+        logger = logging.getLogger(__name__)
+        
+        # Create a full result structure with defaults
+        result = copy.deepcopy(default_structure)
+        
+        # Helper to create an error return value
+        def _create_error_response(
+            error_msg,
+            raw_response_val,
+            response_text_val=None,
+            json_content_val=None,
+            details_val=None,
+        ):
+            error_result = copy.deepcopy(default_structure)
+            error_result["error"] = error_msg
+            error_result["raw_response"] = raw_response_val
+            error_result["response_text"] = response_text_val
+            error_result["json_content"] = json_content_val
+            error_result["details"] = details_val
+            return error_result
+        
+        # Handle direct error responses or empty responses
+        if not response:
+            return _create_error_response(
+                "Empty or null response from Gemini", response
+            )
+        
+        if isinstance(response, dict) and "error" in response:
+            return _create_error_response(
+                f"Error from Gemini API: {response.get('error')}", response
+            )
+        
+        # Extract text content from the response
+        response_text = None
+        if isinstance(response, dict) and "text" in response:
+            response_text = response.get("text", "")
+        elif isinstance(response, str):
+            response_text = response
+        else:
+            return _create_error_response(
+                f"Unsupported response type: {type(response)}", response
+            )
+        
+        # If we have no text to parse, return error
+        if not response_text or not response_text.strip():
+            return _create_error_response(
+                "Empty text response from Gemini", response, response_text
+            )
+        
+        # Try to extract JSON content from text
+        json_content = None
+        
+        # Look for JSON in markdown code blocks first
+        if "```json" in response_text:
+            try:
+                json_content = response_text.split("```json")[1].split("```")[0].strip()
+                logger.info(f"[{parser_name}] Extracted JSON from code block with json tag")
+            except Exception as e:
+                logger.error(f"[{parser_name}] Error extracting from ```json block: {str(e)}")
+        
+        # Try generic code blocks if json blocks not found
+        elif "```" in response_text:
+            try:
+                json_content = response_text.split("```")[1].split("```")[0].strip()
+                logger.info(f"[{parser_name}] Extracted JSON from generic code block")
+            except Exception as e:
+                logger.error(f"[{parser_name}] Error extracting from ``` block: {str(e)}")
+        
+        # If no code blocks, check if the entire text is JSON
+        if not json_content:
+            response_text_clean = response_text.strip()
+            if (response_text_clean.startswith("{") and response_text_clean.endswith("}")) or (
+                response_text_clean.startswith("[") and response_text_clean.endswith("]") 
+            ):
+                json_content = response_text_clean
+                logger.info(f"[{parser_name}] Using full response as JSON")
+            else:
+                # Last resort: try regex to find JSON-like content
+                try:
+                    json_match = re.search(r"\{[\s\S]*?\}", response_text)
+                    if json_match:
+                        json_content = json_match.group(0)
+                        logger.info(f"[{parser_name}] Extracted JSON using regex pattern")
+                except Exception as e:
+                    logger.error(f"[{parser_name}] Error in regex extraction: {str(e)}")
+        
+        # If we still don't have JSON content, return the response text with defaults
+        if not json_content:
+            logger.warning(f"[{parser_name}] No JSON structure found in response")
+            result["raw_response"] = response
+            result["response_text"] = response_text
+            return result
+        
+        # Try to parse the JSON content
+        try:
+            parsed_json = json.loads(json_content)
+            logger.info(f"[{parser_name}] Successfully parsed JSON with keys: {parsed_json.keys() if isinstance(parsed_json, dict) else 'array'}")
+            
+            # Update defaults with parsed data
+            if isinstance(parsed_json, dict):
+                # Update result with parsed values, preserving default structure
+                for key in parsed_json:
+                    if key in result:
+                        result[key] = parsed_json[key]
+                
+                # Make sure score is within valid range if present
+                if "score" in result:
+                    try:
+                        result["score"] = min(5.0, max(0.0, float(result["score"])))
+                    except (ValueError, TypeError):
+                        result["score"] = 0.0
+            
+            # For debugging
+            result["json_content"] = json_content
+            result["response_text"] = response_text
+            result["raw_response"] = response
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"[{parser_name}] Error parsing JSON: {str(e)}")
+            return _create_error_response(
+                f"JSON parsing failed: {str(e)}",
+                response,
+                response_text,
+                json_content,
+                str(e),
+            )
 
     def _parse_thumbnail_analysis(self, response) -> dict:
         """Robustly parse Gemini thumbnail analysis, supporting:
