@@ -1,0 +1,31 @@
+# Core Dependencies
+python-dotenv>=1.0.0
+streamlit>=1.28.0
+python-multipart>=0.0.6
+pydantic>=2.7.0
+pydantic-settings>=2.8.0
+
+# Google APIs
+google-generativeai>=0.3.0
+google-api-python-client>=2.0.0
+
+# Data Visualization
+pandas>=2.0.0
+plotly>=5.13.0
+pillow>=9.4.0
+
+
+# Utilities
+python-dateutil>=2.8.2
+pytz>=2023.3
+tqdm>=4.66.0
+requests>=2.28.0
+
+# Development
+twine>=4.0.0
+pytest>=7.4.0
+pytest-cov>=4.0.0
+black>=23.0.0
+isort>=5.12.0
+mypy>=1.0.0
+pylint>=2.17.0

@@ -1,0 +1,80 @@
+{
+  "summary": "",
+  "scores": {
+    "hook": 4,
+    "title": 0,
+    "thumbnail": 0,
+    "content_quality": 4,
+    "seo_optimization": 3,
+    "audience_engagement": 3,
+    "technical_performance": 4,
+    "overall_score": 7.2
+  },
+  "analysis": {
+    "hook": "Hook (Clickability)**: 4/5\n-",
+    "content_quality": "Content Quality**: 4/5\n-",
+    "seo_optimization": "SEO Optimization**: 3/5\n-",
+    "audience_engagement": "Audience Engagement**: 3/5\n-",
+    "technical_performance": "Technical Performance**: 4/5",
+    "seo_analysis": {
+      "error": "Detailed JSON block not found in Gemini response",
+      "section_text_sample": "SEO Optimization**: 3/5\n-"
+    },
+    "content_quality_analysis": {
+      "error": "Detailed JSON block not found in Gemini response",
+      "section_text_sample": "Content Quality**: 4/5\n-"
+    },
+    "audience_engagement_analysis": {
+      "error": "Detailed JSON block not found in Gemini response",
+      "section_text_sample": "Audience Engagement**: 3/5\n-"
+    },
+    "technical_performance_analysis": {
+      "error": "Detailed JSON block not found in Gemini response",
+      "section_text_sample": "Technical Performance**: 4/5"
+    }
+  },
+  "recommendations": {
+    "hook_optimization": [
+      "Make the thumbnail text larger for mobile viewers",
+      "Place primary keyword at the beginning of the title",
+      "Test different emotional hooks in the title"
+    ],
+    "content_improvements": [
+      "Tighten the introduction to get to the main content faster",
+      "Add brief definitions for technical terms",
+      "Include more visual demonstrations of concepts",
+      "Expand the summary with clear action items"
+    ],
+    "seo_optimization": [
+      "**Content Quality**: 4/5"
+    ],
+    "audience_engagement": [],
+    "technical_improvements": [
+      "Add closed captions for accessibility",
+      "Improve text contrast for better readability",
+      "Add chapter markers in video description",
+      "Consider upgrading to 4K for future videos"
+    ]
+  },
+  "action_plan": {
+    "quick_wins": [
+      "Add timestamps to description",
+      "Add closed captions",
+      "Place main keyword at start of title",
+      "Add chapter markers"
+    ],
+    "medium_term": [
+      "Update thumbnail with larger text",
+      "Create description template with CTAs",
+      "Add mid-video engagement elements",
+      "Develop community question format"
+    ],
+    "long_term": [
+      "Upgrade recording equipment for 4K",
+      "Develop consistent intro/outro sequence",
+      "Create series format for related topics",
+      "Build more comprehensive keyword strategy"
+    ]
+  },
+  "raw_response": "# YouTube Video Analysis\n\n## Summary\nThis video shows good potential but needs improvement in several areas.\n\n## Performance Scores\n- **Hook (Clickability)**: 4/5\n- **SEO Optimization**: 3/5\n- **Content Quality**: 4/5\n- **Audience Engagement**: 3/5\n- **Technical Performance**: 4/5\n\n### Hook (Clickability)\n\nThe hook elements are quite effective at attracting clicks.\n\nDETAILED BREAKDOWN of the title analysis:\n\n```json\n{\n  \"score\": 4.0,\n  \"effectiveness\": \"The title is compelling and clearly communicates the video topic\",\n  \"keywords\": \"Good use of primary keywords, but could be better positioned\",\n  \"length\": \"Appropriate length under 60 characters\",\n  \"clarity\": \"Clear and easy to understand\",\n  \"emotional_appeal\": \"Moderate emotional appeal with attention-grabbing words\",\n  \"recommendations\": [\n    \"Add more emotional keywords\",\n    \"Consider including numbers for better CTR\",\n    \"Keep the most important keywords at the beginning\"\n  ]\n}\n```\n\nTHEN, DETAILED BREAKDOWN of the thumbnail analysis:\n\n```json\n{\n  \"score\": 4.0,\n  \"design_effectiveness\": \"Strong visual hierarchy with clear focal point\",\n  \"clarity\": \"Text is readable and image is clear\",\n  \"branding\": \"Consistent with channel identity\",\n  \"visual_appeal\": \"Good use of contrasting colors\",\n  \"visual_elements\": {\n    \"people\": \"Presenter shown with engaged expression\",\n    \"objects\": \"Relevant props that support the topic\",\n    \"text\": \"Key phrase that supports title\",\n    \"colors\": \"High contrast with brand colors\",\n    \"composition\": \"Z-pattern reading flow\"\n  },\n  \"thumbnail_optimization\": \"Well-optimized for both mobile and desktop viewing\",\n  \"clickability\": \"High clickability due to intrigue factor\",\n  \"relevance_to_title\": \"Directly supports title's promise\",\n  \"emotional_appeal\": \"Creates curiosity through facial expression\",\n  \"recommendations\": [\n    \"Increase text size slightly for mobile users\",\n    \"Add subtle brand element to bottom corner\",\n    \"Test more saturated colors for better standout\"\n  ]\n}\n```\n\n### SEO Optimization\n\nThe video has decent SEO but could use improvements in metadata and keyword usage.\n\n```json\n{\n  \"score\": 3.0,\n  \"title_effectiveness\": \"Good keyword inclusion but order could be optimized\",\n  \"description\": \"Contains relevant keywords but lacks structured information\",\n  \"tags\": \"Good variety but missing some high-volume search terms\",\n  \"thumbnail_clickability\": \"Thumbnail reinforces key topics visually\",\n  \"recommendations\": [\n    \"Reorganize title to place primary keyword at beginning\",\n    \"Add timestamps in description for key topics\",\n    \"Include 3-5 more relevant tags based on search volume\",\n    \"Create a consistent description template with links and CTAs\"\n  ]\n}\n```\n\n### Content Quality\n\nThe video content is informative, well-structured and delivers on its promises.\n\n```json\n{\n  \"score\": 4.0,\n  \"summary\": \"High-quality content with good depth and presentation\",\n  \"clarity\": \"Concepts are explained clearly with good examples\",\n  \"depth_of_information\": \"Comprehensive coverage of the topic with actionable insights\",\n  \"structure_and_flow\": \"Logical progression with smooth transitions\",\n  \"value_proposition\": \"Strong practical value for the audience\",\n  \"engagement_factors\": \"Good use of storytelling and visual aids\",\n  \"originality\": \"Presents unique perspective on common topic\",\n  \"accuracy\": \"Information is factual and well-researched\",\n  \"call_to_action_effectiveness\": \"Clear and compelling CTA\",\n  \"script_quality\": \"Well-written script with conversational tone\",\n  \"presentation_style\": \"Confident delivery with good pacing\",\n  \"editing_and_pacing\": \"Tight editing with appropriate pacing\",\n  \"key_topics\": [\n    \"Main subject introduction\",\n    \"Key concepts explained\",\n    \"Practical application\",\n    \"Case studies\",\n    \"Summary of takeaways\"\n  ],\n  \"strengths\": [\n    \"In-depth explanation of complex concepts\",\n    \"Effective use of visual aids\",\n    \"Good balance of theory and practical examples\",\n    \"Engaging presenter delivery\"\n  ],\n  \"weaknesses\": [\n    \"Introduction could be more concise\",\n    \"Some technical terms not fully explained\",\n    \"Closing summary is brief\"\n  ],\n  \"recommendations\": [\n    \"Tighten the introduction to get to the main point faster\",\n    \"Add brief definitions for technical terms\",\n    \"Expand the summary with clear action items\",\n    \"Consider adding on-screen text for key points\"\n  ]\n}\n```\n\n### Audience Engagement\n\nThe video has moderate engagement metrics that could be improved.\n\n```json\n{\n  \"score\": 3.0,\n  \"hook_strength\": \"Opening grabs attention but could be stronger\",\n  \"storytelling\": \"Good narrative structure but missing emotional connection\",\n  \"ctas\": \"Clear calls to action but only at the end\",\n  \"community_potential\": \"Some comments show audience interaction\",\n  \"recommendations\": [\n    \"Add a stronger hook in the first 15 seconds\",\n    \"Include personal stories to create emotional connection\",\n    \"Place mid-video CTAs for better engagement\",\n    \"Ask viewers questions to encourage comments\",\n    \"Create opportunities for community discussion\"\n  ]\n}\n```\n\n### Technical Performance\n\nThe video has good technical quality overall.\n\n```json\n{\n  \"score\": 4.0,\n  \"video_quality\": \"Clear 1080p resolution with good lighting\",\n  \"audio_quality\": \"Clear audio with minimal background noise\",\n  \"length_appropriateness\": \"Good length for the topic without filler\",\n  \"accessibility\": \"Missing captions and some visual elements lack contrast\",\n  \"recommendations\": [\n    \"Add closed captions for accessibility\",\n    \"Improve text contrast for better readability\",\n    \"Consider upgrading to 4K for future videos\",\n    \"Add chapter markers in video description\"\n  ]\n}\n  \"score\": 4.0,\n  \"effectiveness\": \"The title is compelling and clearly communicates the video topic\",\n  \"recommendations\": [\n    \"Add more emotional keywords\",\n    \"Consider including numbers for better CTR\",\n    \"Keep the most important keywords at the beginning\"\n  ]\n}}\n```\n\n#### THEN, DETAILED BREAKDOWN of the thumbnail analysis:\n\n```json\n{{\n  \"score\": 4.0,\n  \"design_effectiveness\": \"Strong visual hierarchy with clear focal point\",\n  \"clarity\": \"Text is readable and image is clear\",\n  \"branding\": \"Consistent with channel identity\",\n  \"visual_appeal\": \"Good use of contrasting colors\",\n  \"visual_elements\": {{\n    \"people\": \"Presenter shown with engaged expression\",\n    \"objects\": \"Relevant props that support the topic\",\n    \"text\": \"Key phrase that supports title\",\n    \"colors\": \"High contrast with brand colors\",\n    \"composition\": \"Z-pattern reading flow\"\n  }},\n  \"thumbnail_optimization\": \"Well-optimized for both mobile and desktop viewing\",\n  \"clickability\": \"High clickability due to intrigue factor\",\n  \"relevance_to_title\": \"Directly supports title's promise\",\n  \"emotional_appeal\": \"Creates curiosity through facial expression\",\n  \"recommendations\": [\n    \"Increase text size slightly for mobile users\",\n    \"Add subtle brand element to bottom corner\",\n    \"Test more saturated colors for better standout\"\n  ]\n}}\n```\n\n### SEO Optimization\n\nThe video has decent SEO but could use improvements in metadata and keyword usage.\n\n```json\n{{\n  \"score\": 3.0,\n  \"title_effectiveness\": \"Good keyword inclusion but order could be optimized\",\n  \"description\": \"Contains relevant keywords but lacks structured information\",\n  \"tags\": \"Good variety but missing some high-volume search terms\",\n  \"thumbnail_clickability\": \"Thumbnail reinforces key topics visually\",\n  \"recommendations\": [\n    \"Reorganize title to place primary keyword at beginning\",\n    \"Add timestamps in description for key topics\",\n    \"Include 3-5 more relevant tags based on search volume\",\n    \"Create a consistent description template with links and CTAs\"\n  ]\n}}\n```\n\n### Content Quality\n\nThe video content is informative, well-structured and delivers on its promises.\n\n```json\n{{\n  \"score\": 4.0,\n  \"summary\": \"High-quality content with good depth and presentation\",\n  \"clarity\": \"Concepts are explained clearly with good examples\",\n  \"depth_of_information\": \"Comprehensive coverage of the topic with actionable insights\",\n  \"structure_and_flow\": \"Logical progression with smooth transitions\",\n  \"value_proposition\": \"Strong practical value for the audience\",\n  \"engagement_factors\": \"Good use of storytelling and visual aids\",\n  \"originality\": \"Presents unique perspective on common topic\",\n  \"accuracy\": \"Information is factual and well-researched\",\n  \"call_to_action_effectiveness\": \"Clear and compelling CTA\",\n  \"script_quality\": \"Well-written script with conversational tone\",\n  \"presentation_style\": \"Confident delivery with good pacing\",\n  \"editing_and_pacing\": \"Tight editing with appropriate pacing\",\n  \"key_topics\": [\n    \"Main subject introduction\",\n    \"Key concepts explained\",\n    \"Practical application\",\n    \"Case studies\",\n    \"Summary of takeaways\"\n  ],\n  \"strengths\": [\n    \"In-depth explanation of complex concepts\",\n    \"Effective use of visual aids\",\n    \"Good balance of theory and practical examples\",\n    \"Engaging presenter delivery\"\n  ],\n  \"weaknesses\": [\n    \"Introduction could be more concise\",\n    \"Some technical terms not fully explained\",\n    \"Closing summary is brief\"\n  ],\n  \"recommendations\": [\n    \"Tighten the introduction to get to the main point faster\",\n    \"Add brief definitions for technical terms\",\n    \"Expand the summary with clear action items\",\n    \"Consider adding on-screen text for key points\"\n  ]\n}}\n```\n\n### Audience Engagement\n\nThe video has moderate engagement metrics that could be improved.\n\n```json\n{{\n  \"score\": 3.0,\n  \"hook_strength\": \"Opening grabs attention but could be stronger\",\n  \"storytelling\": \"Good narrative structure but missing emotional connection\",\n  \"ctas\": \"Clear calls to action but only at the end\",\n  \"community_potential\": \"Some comments show audience interaction\",\n  \"recommendations\": [\n    \"Add a stronger hook in the first 15 seconds\",\n    \"Include personal stories to create emotional connection\",\n    \"Place mid-video CTAs for better engagement\",\n    \"Ask viewers questions to encourage comments\",\n    \"Create opportunities for community discussion\"\n  ]\n}}\n```\n\n### Technical Performance\n\nThe video has good technical quality overall.\n\n```json\n{{\n  \"score\": 4.0,\n  \"video_quality\": \"Clear 1080p resolution with good lighting\",\n  \"audio_quality\": \"Clear audio with minimal background noise\",\n  \"length_appropriateness\": \"Good length for the topic without filler\",\n  \"accessibility\": \"Missing captions and some visual elements lack contrast\",\n  \"recommendations\": [\n    \"Add closed captions for accessibility\",\n    \"Improve text contrast for better readability\",\n    \"Consider upgrading to 4K for future videos\",\n    \"Add chapter markers in video description\"\n  ]\n}}\n```\n\n## Recommendations\n\n### Hook Optimization\n- Make the thumbnail text larger for mobile viewers\n- Place primary keyword at the beginning of the title\n- Test different emotional hooks in the title\n\n### Content Improvements\n- Tighten the introduction to get to the main content faster\n- Add brief definitions for technical terms\n- Include more visual demonstrations of concepts\n- Expand the summary with clear action items\n\n### SEO Optimization\n- Add timestamps in the description\n- Include 3-5 more relevant tags\n- Create a consistent description template\n- Cross-link to related content\n\n### Audience Engagement\n- Ask viewers specific questions to encourage comments\n- Add mid-video calls to action\n- Create a community challenge related to the content\n- Include personal stories to create emotional connection\n\n### Technical Improvements\n- Add closed captions for accessibility\n- Improve text contrast for better readability\n- Add chapter markers in video description\n- Consider upgrading to 4K for future videos\n\n## Action Plan\n\n### Quick Wins\n- Add timestamps to description\n- Add closed captions\n- Place main keyword at start of title\n- Add chapter markers\n\n### Medium-term\n- Update thumbnail with larger text\n- Create description template with CTAs\n- Add mid-video engagement elements\n- Develop community question format\n\n### Long-term\n- Upgrade recording equipment for 4K\n- Develop consistent intro/outro sequence\n- Create series format for related topics\n- Build more comprehensive keyword strategy\n\n"
+}
