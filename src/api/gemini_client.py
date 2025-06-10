@@ -885,12 +885,73 @@ class GeminiClient:
                 f"[GeminiClient][Parse][{key.capitalize()}] No ```json``` block found, trying to find JSON object directly."
             )
 
-            # Try to find a JSON object starting with { and ending with }
-            json_direct_match = re.search(
-                r"(\{[\s\S]*?\})(?=\s*$|\s*\n\s*###|\s*\n\s*```)", section_text
-            )
+            # Try different approaches to find JSON objects
 
-            if json_direct_match:
+            # 1. Try to find a well-formed JSON object with balanced braces
+            # This more carefully handles nested JSON objects by counting braces
+            try:
+                # Find all opening braces
+                open_positions = [
+                    i for i, char in enumerate(section_text) if char == "{"
+                ]
+
+                for start_pos in open_positions:
+                    # Starting from this position, track brace balance
+                    balance = 0
+                    end_pos = -1
+
+                    for i in range(start_pos, len(section_text)):
+                        if section_text[i] == "{":
+                            balance += 1
+                        elif section_text[i] == "}":
+                            balance -= 1
+
+                        if balance == 0:  # Found balanced closing brace
+                            end_pos = i
+                            break
+
+                    if end_pos > start_pos:
+                        # Found a potential JSON object
+                        potential_json = section_text[start_pos : end_pos + 1].strip()
+                        try:
+                            # Verify it's valid JSON
+                            json.loads(potential_json)
+                            # If we reach here, we found valid JSON!
+                            json_direct_match = True
+                            json_string = potential_json
+                            logger.info(
+                                f"[GeminiClient][Parse][{key.capitalize()}] Found valid JSON using brace-matching approach"
+                            )
+                            break
+                        except json.JSONDecodeError:
+                            # Not valid JSON, continue searching
+                            continue
+
+                # If we didn't find JSON with the above approach, fall back to regex
+                if "json_direct_match" not in locals() or not json_direct_match:
+                    json_direct_match = re.search(
+                        r"(\{[\s\S]*?\})(?=\s*$|\s*\n\s*###|\s*\n\s*```)", section_text
+                    )
+            except Exception as e:
+                # If anything goes wrong, fall back to regex
+                logger.warning(
+                    f"[GeminiClient][Parse][{key.capitalize()}] Error in JSON extraction: {str(e)}. Falling back to regex."
+                )
+                json_direct_match = re.search(
+                    r"(\{[\s\S]*?\})(?=\s*$|\s*\n\s*###|\s*\n\s*```)", section_text
+                )
+
+            # Handle both our brace-matching approach and regex approach
+            if (
+                isinstance(json_direct_match, bool)
+                and json_direct_match
+                and "json_string" in locals()
+            ):
+                # json_string is already set by our brace-matching algorithm
+                logger.debug(
+                    f"[GeminiClient][Parse][{key.capitalize()}] Found potential direct JSON object (first 100 chars): {json_string[:100]}"
+                )
+            elif json_direct_match:  # This is a regex match object
                 json_string = json_direct_match.group(1).strip()
                 logger.debug(
                     f"[GeminiClient][Parse][{key.capitalize()}] Found potential direct JSON object (first 100 chars): {json_string[:100]}"
@@ -1154,8 +1215,14 @@ class GeminiClient:
                         result,
                     )
                     # Ensure the score key matches
-                    if "audience_engagement_analysis" in result["analysis"] and "score" in result["analysis"]["audience_engagement_analysis"]:
-                        result["scores"]["audience_engagement"] = float(result["analysis"]["audience_engagement_analysis"]["score"])
+                    if (
+                        "audience_engagement_analysis" in result["analysis"]
+                        and "score"
+                        in result["analysis"]["audience_engagement_analysis"]
+                    ):
+                        result["scores"]["audience_engagement"] = float(
+                            result["analysis"]["audience_engagement_analysis"]["score"]
+                        )
 
                 elif key == "technical_performance":
                     self._extract_and_validate_json(
