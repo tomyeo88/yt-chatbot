@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 from concurrent.futures import ThreadPoolExecutor
-import copy # Added for deepcopying chat states
+import copy  # Added for deepcopying chat states
 
 # Suppress DeltaGenerator warnings
 warnings.filterwarnings(
@@ -34,7 +34,9 @@ from src.utils.formatters import format_duration, format_published_date
 load_dotenv()
 
 # Setup logger for this module
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 # Constants
@@ -65,10 +67,12 @@ def persist_chat_history(history: List[Dict[str, Any]]):
         return
 
     try:
-        sanitized_history = sanitize_for_json(history) # Sanitize before saving
+        sanitized_history = sanitize_for_json(history)  # Sanitize before saving
         with open(CHAT_HISTORY_FILE, "w", encoding="utf-8") as f:
             json.dump(sanitized_history, f, indent=2)
-        logger.info(f"Chat history persisted successfully with {len(sanitized_history)} items.")
+        logger.info(
+            f"Chat history persisted successfully with {len(sanitized_history)} items."
+        )
     except Exception as e:
         logger.error(f"Error persisting chat history: {e}", exc_info=True)
         st.toast(f"⚠️ Error saving chat history: {str(e)}", icon="❌")
@@ -82,20 +86,29 @@ def load_chat_history() -> List[Dict[str, Any]]:
         try:
             with open(CHAT_HISTORY_FILE, "r", encoding="utf-8") as f:
                 history = json.load(f)
-                logger.info(f"Successfully loaded {len(history)} chats from {CHAT_HISTORY_FILE}.")
-                
+                logger.info(
+                    f"Successfully loaded {len(history)} chats from {CHAT_HISTORY_FILE}."
+                )
+
                 # Format numbers in all historical messages
                 for conversation in history:
                     if "messages" in conversation:
                         for i, message in enumerate(conversation["messages"]):
-                            if message.get("role") == "assistant" and "content" in message:
+                            if (
+                                message.get("role") == "assistant"
+                                and "content" in message
+                            ):
                                 # Format numbers in the content
                                 content = message["content"]
                                 formatted_content = format_numbers_with_commas(content)
                                 if formatted_content != content:
-                                    print(f"[load_chat_history] Formatted message in conversation {conversation.get('id', 'unknown')}")
-                                    conversation["messages"][i]["content"] = formatted_content
-                
+                                    print(
+                                        f"[load_chat_history] Formatted message in conversation {conversation.get('id', 'unknown')}"
+                                    )
+                                    conversation["messages"][i][
+                                        "content"
+                                    ] = formatted_content
+
                 st.session_state.conversation_history = history
                 # Save the formatted history back to file
                 persist_chat_history(history)
@@ -103,10 +116,14 @@ def load_chat_history() -> List[Dict[str, Any]]:
         except json.JSONDecodeError as e:
             logger.error(f"Error decoding JSON from {CHAT_HISTORY_FILE}: {e}")
         except FileNotFoundError:
-            logger.error(f"File {CHAT_HISTORY_FILE} not found during open, though os.path.exists was true.")
+            logger.error(
+                f"File {CHAT_HISTORY_FILE} not found during open, though os.path.exists was true."
+            )
     else:
-        logger.info(f"File {CHAT_HISTORY_FILE} does not exist. Returning empty history.")
-    
+        logger.info(
+            f"File {CHAT_HISTORY_FILE} does not exist. Returning empty history."
+        )
+
     # Create an empty history in case of errors
     st.session_state.conversation_history = []
     return []
@@ -132,65 +149,99 @@ def save_chat_history(conversation: Dict[str, Any]):
 def init_session_state():
     """Initialize session state variables."""
     # Initialize current_chat_id if not present
-    if "current_chat_id" not in st.session_state or not st.session_state.current_chat_id:
+    if (
+        "current_chat_id" not in st.session_state
+        or not st.session_state.current_chat_id
+    ):
         st.session_state.current_chat_id = str(uuid.uuid4())
         # Initialize title and messages only if creating a truly new chat session ID
-        st.session_state.current_chat_title = f"Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        st.session_state.current_chat_title = (
+            f"Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        )
         st.session_state.messages = [
             {
                 "role": "assistant",
                 "content": "👋 Hi there! I'm your YouTube Video Intelligence Assistant. "
-                           "Paste a YouTube URL to get started with video analysis!",
+                "Paste a YouTube URL to get started with video analysis!",
             }
         ]
-        st.session_state.analysis = None # Ensure analysis is reset for a new chat ID
-        st.session_state.current_analysis = None # Ensure current_analysis is reset
+        st.session_state.analysis = None  # Ensure analysis is reset for a new chat ID
+        st.session_state.current_analysis = None  # Ensure current_analysis is reset
         # Reset video context for new chat
         st.session_state.current_video_url = None
 
     # Ensure messages list exists, even if current_chat_id was already set
     # This handles cases where the app might have been reloaded without full re-initialization
     if "messages" not in st.session_state:
-         st.session_state.messages = [
+        st.session_state.messages = [
             {
                 "role": "assistant",
                 "content": "👋 Hi there! I'm your YouTube Video Intelligence Assistant. "
-                           "Paste a YouTube URL to get started with video analysis!",
+                "Paste a YouTube URL to get started with video analysis!",
             }
         ]
 
     # Ensure video context tracking exists
     if "current_video_url" not in st.session_state:
         st.session_state.current_video_url = None
-    
-    if "current_chat_title" not in st.session_state or not st.session_state.current_chat_title:
+
+    if (
+        "current_chat_title" not in st.session_state
+        or not st.session_state.current_chat_title
+    ):
         # If current_chat_id exists but title doesn't, try to load from history or set a default
-        existing_chat = next((c for c in st.session_state.get("conversation_history", []) if c.get("id") == st.session_state.current_chat_id), None)
+        existing_chat = next(
+            (
+                c
+                for c in st.session_state.get("conversation_history", [])
+                if c.get("id") == st.session_state.current_chat_id
+            ),
+            None,
+        )
         if existing_chat and existing_chat.get("title"):
             st.session_state.current_chat_title = existing_chat.get("title")
         else:
-            st.session_state.current_chat_title = f"Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-            
+            st.session_state.current_chat_title = (
+                f"Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            )
+
     # Critical fix: Ensure analysis data is loaded for the current chat
     # This ensures follow-up questions have access to the video context
-    if ("current_analysis" not in st.session_state or st.session_state.current_analysis is None) and st.session_state.get("current_chat_id"):
-        logger.info(f"Attempting to restore analysis data for chat: {st.session_state.current_chat_id}")
+    if (
+        "current_analysis" not in st.session_state
+        or st.session_state.current_analysis is None
+    ) and st.session_state.get("current_chat_id"):
+        logger.info(
+            f"Attempting to restore analysis data for chat: {st.session_state.current_chat_id}"
+        )
         # Find the chat in history
         history = st.session_state.get("conversation_history", [])
-        existing_chat = next((c for c in history if c.get("id") == st.session_state.current_chat_id), None)
-        
+        existing_chat = next(
+            (c for c in history if c.get("id") == st.session_state.current_chat_id),
+            None,
+        )
+
         if existing_chat and existing_chat.get("analysis"):
             # Restore both analysis objects from history
             st.session_state.analysis = copy.deepcopy(existing_chat.get("analysis"))
-            st.session_state.current_analysis = copy.deepcopy(existing_chat.get("analysis"))
-            
+            st.session_state.current_analysis = copy.deepcopy(
+                existing_chat.get("analysis")
+            )
+
             # Extract video URL if available
-            if isinstance(st.session_state.analysis, dict) and "metadata" in st.session_state.analysis:
+            if (
+                isinstance(st.session_state.analysis, dict)
+                and "metadata" in st.session_state.analysis
+            ):
                 video_id = st.session_state.analysis.get("video_id")
                 if video_id:
-                    st.session_state.current_video_url = f"https://www.youtube.com/watch?v={video_id}"
-                    logger.info(f"Restored video context: {st.session_state.current_video_url}")
-            
+                    st.session_state.current_video_url = (
+                        f"https://www.youtube.com/watch?v={video_id}"
+                    )
+                    logger.info(
+                        f"Restored video context: {st.session_state.current_video_url}"
+                    )
+
             logger.info("Successfully restored analysis data for current chat")
         else:
             logger.info("No analysis data found in history for current chat")
@@ -253,42 +304,48 @@ def init_session_state():
 
 def setup_sidebar():
     """Set up the sidebar components."""
-    logger.info(f"ENTERING setup_sidebar. Conversation history count: {len(st.session_state.get('conversation_history', []))}")
+    logger.info(
+        f"ENTERING setup_sidebar. Conversation history count: {len(st.session_state.get('conversation_history', []))}"
+    )
     with st.sidebar:
         st.title("💬 Conversations")  # Original line 134
         if st.button("➕ New Chat", use_container_width=True, type="primary"):
             # *** IMPROVED FIX: Complete refactor of New Chat behavior ***
             # 1. Generate a completely new unique ID for this chat
             new_chat_id = str(uuid.uuid4())
-            
+
             # 2. Store the new IDs and set a clear title
             st.session_state.current_chat_id = new_chat_id
-            st.session_state.conversation_id = new_chat_id  # Keep both ID types consistent
-            st.session_state.current_chat_title = f"New Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-            
+            st.session_state.conversation_id = (
+                new_chat_id  # Keep both ID types consistent
+            )
+            st.session_state.current_chat_title = (
+                f"New Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            )
+
             # 3. Set the welcome message
             st.session_state.messages = [
                 {
                     "role": "assistant",
                     "content": "👋 Hi there! I'm your YouTube Video Intelligence Assistant. "
-                               "Paste a YouTube URL to get started with video analysis!",
+                    "Paste a YouTube URL to get started with video analysis!",
                 }
             ]
-            
+
             # 4. Reset analysis data completely
             st.session_state.analysis = None
             st.session_state.current_analysis = None
-            
+
             # 5. Set critical flags to prevent auto-saving which causes duplication
             st.session_state.just_created_new_chat = True
             st.session_state.skip_save_for_current_chat = True
-            
+
             # 6. Clear any existing URL parameters that might affect state
             st.query_params.clear()
-            
+
             # 7. Log the new chat creation and trigger UI refresh
             logger.info(f"Started new chat with ID: {st.session_state.current_chat_id}")
-            st.rerun() # Refresh the UI to show the new chat state with input box
+            st.rerun()  # Refresh the UI to show the new chat state with input box
 
         st.divider()  # This divider separates New Chat from Recent Chats
 
@@ -343,64 +400,84 @@ def setup_sidebar():
                 with col1:
                     if st.button(
                         button_label,
-                        key=f"load_conv_idx_{idx}_{conv.get('id', 'no_id')}", # Ensure unique key with idx
+                        key=f"load_conv_idx_{idx}_{conv.get('id', 'no_id')}",  # Ensure unique key with idx
                         use_container_width=True,
                     ):
-                        save_current_conversation() # Save outgoing chat
+                        save_current_conversation()  # Save outgoing chat
 
-                        st.session_state.current_chat_id = conv.get('id')
-                        st.session_state.current_chat_title = conv.get('title', f"Chat {conv.get('id')[:8]}")
-                        st.session_state.messages = copy.deepcopy(conv.get("messages", []))  # Use deepcopy
-                        st.session_state.analysis = copy.deepcopy(conv.get("analysis", None))  # Use deepcopy
-                        st.session_state.current_analysis = copy.deepcopy(conv.get("analysis", None))  # Use deepcopy for current_analysis as well
-                        
+                        st.session_state.current_chat_id = conv.get("id")
+                        st.session_state.current_chat_title = conv.get(
+                            "title", f"Chat {conv.get('id')[:8]}"
+                        )
+                        st.session_state.messages = copy.deepcopy(
+                            conv.get("messages", [])
+                        )  # Use deepcopy
+                        st.session_state.analysis = copy.deepcopy(
+                            conv.get("analysis", None)
+                        )  # Use deepcopy
+                        st.session_state.current_analysis = copy.deepcopy(
+                            conv.get("analysis", None)
+                        )  # Use deepcopy for current_analysis as well
+
                         # Restore video URL context from the conversation
                         if "video_url" in conv:
                             st.session_state.current_video_url = conv.get("video_url")
-                            print(f"[DEBUG_TRACE] Restored video URL from loaded chat: {st.session_state.current_video_url}")
+                            print(
+                                f"[DEBUG_TRACE] Restored video URL from loaded chat: {st.session_state.current_video_url}"
+                            )
                         else:
                             # Try to find video URL in messages
                             for msg in reversed(st.session_state.messages):
                                 if isinstance(msg, dict) and "video_url" in msg:
-                                    st.session_state.current_video_url = msg.get("video_url")
-                                    print(f"[DEBUG_TRACE] Restored video URL from message: {st.session_state.current_video_url}")
+                                    st.session_state.current_video_url = msg.get(
+                                        "video_url"
+                                    )
+                                    print(
+                                        f"[DEBUG_TRACE] Restored video URL from message: {st.session_state.current_video_url}"
+                                    )
                                     break
-                        
+
                         logger.info(f"Loaded chat: {st.session_state.current_chat_id}")
                         st.rerun()
                 with col2:
                     if st.button(
                         "🗑️",
-                        key=f"delete_conv_idx_{idx}_{conv.get('id', 'no_id')}", # Ensure unique key with idx
+                        key=f"delete_conv_idx_{idx}_{conv.get('id', 'no_id')}",  # Ensure unique key with idx
                         use_container_width=True,
                         help="Delete this chat",
                     ):
-                        chat_id_to_delete = conv.get('id')
+                        chat_id_to_delete = conv.get("id")
                         logger.info(f"Attempting to delete chat: {chat_id_to_delete}")
-                        
+
                         # Filter out the conversation to delete
                         st.session_state.conversation_history = [
                             c
-                            for c in st.session_state.get("conversation_history", []) # Add .get for safety
+                            for c in st.session_state.get(
+                                "conversation_history", []
+                            )  # Add .get for safety
                             if c.get("id") != chat_id_to_delete
                         ]
                         persist_chat_history(st.session_state.conversation_history)
-                        
+
                         # If the deleted chat was the current one, reset to a new chat state
                         if st.session_state.current_chat_id == chat_id_to_delete:
-                            logger.info(f"Current chat {chat_id_to_delete} was deleted. Resetting to new chat state.")
+                            logger.info(
+                                f"Current chat {chat_id_to_delete} was deleted. Resetting to new chat state."
+                            )
                             st.session_state.current_chat_id = str(uuid.uuid4())
-                            st.session_state.current_chat_title = f"New Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+                            st.session_state.current_chat_title = (
+                                f"New Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+                            )
                             st.session_state.messages = [
                                 {
                                     "role": "assistant",
                                     "content": "👋 Hi there! I'm your YouTube Video Intelligence Assistant. "
-                                               "Paste a YouTube URL to get started with video analysis!",
+                                    "Paste a YouTube URL to get started with video analysis!",
                                 }
                             ]
                             st.session_state.analysis = None
                             st.session_state.current_analysis = None
-                        
+
                         st.rerun()
 
         st.divider()
@@ -519,30 +596,43 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
     """
     # Debug information to verify what data we have
     print(f"[display_analysis_results] Analysis type: {type(analysis)}")
-    if hasattr(analysis, 'keys'):
+    if hasattr(analysis, "keys"):
         print(f"[display_analysis_results] Analysis keys: {list(analysis.keys())}")
     else:
-        print(f"[display_analysis_results] Analysis doesn't have keys method: {analysis}")
-    
+        print(
+            f"[display_analysis_results] Analysis doesn't have keys method: {analysis}"
+        )
+
     # Check for specific analysis sections we expect
     if isinstance(analysis, dict):
         if "analysis" in analysis:
-            print(f"[display_analysis_results] 'analysis' key present with type: {type(analysis['analysis'])}")
+            print(
+                f"[display_analysis_results] 'analysis' key present with type: {type(analysis['analysis'])}"
+            )
         if "metadata" in analysis:
             print(f"[display_analysis_results] 'metadata' key present")
         if "scores" in analysis:
             print(f"[display_analysis_results] 'scores' key present")
-    
+
     # Make sure we don't accidentally convert analysis to plain text
-    if isinstance(analysis, str) and (analysis.startswith('{') or analysis.startswith('[')):
-        print(f"[display_analysis_results] WARNING: Analysis appears to be a string representation of JSON!")
+    if isinstance(analysis, str) and (
+        analysis.startswith("{") or analysis.startswith("[")
+    ):
+        print(
+            f"[display_analysis_results] WARNING: Analysis appears to be a string representation of JSON!"
+        )
         try:
             # Try to parse it back to a dictionary
             import json
+
             analysis = json.loads(analysis)
-            print(f"[display_analysis_results] Successfully parsed string back to dict with keys: {analysis.keys()}")
+            print(
+                f"[display_analysis_results] Successfully parsed string back to dict with keys: {analysis.keys()}"
+            )
         except Exception as e:
-            print(f"[display_analysis_results] Failed to parse string as JSON: {str(e)}")
+            print(
+                f"[display_analysis_results] Failed to parse string as JSON: {str(e)}"
+            )
 
     # Initialize thumbnail_analysis with a default structure at the start of the function
     thumbnail_analysis = {
@@ -917,7 +1007,11 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
     with st.expander("View Title Analysis Details", expanded=False):
         if title_analysis:
             # Check for error in title analysis - only if error has a non-null value
-            if isinstance(title_analysis, dict) and "error" in title_analysis and title_analysis["error"] is not None:
+            if (
+                isinstance(title_analysis, dict)
+                and "error" in title_analysis
+                and title_analysis["error"] is not None
+            ):
                 st.warning(f"Error in title analysis: {title_analysis['error']}")
 
                 # Try to get title information from metadata
@@ -1250,28 +1344,29 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
             seo_score = min(5.0, seo_score)
         except (TypeError, ValueError):
             seo_score = None
+
         # Define the SEO display function first, so it's available everywhere
         def display_seo_content(content, prefix=""):
             if isinstance(content, dict):
                 # First try to extract key fields of interest
                 important_fields = [
-                    "title_effectiveness", 
-                    "description", 
-                    "tags", 
-                    "thumbnail_clickability"
+                    "title_effectiveness",
+                    "description",
+                    "tags",
+                    "thumbnail_clickability",
                 ]
                 recommendations = None
-                
+
                 # Special handling for recommendations
                 if "recommendations" in content:
                     recommendations = content["recommendations"]
-                
+
                 # Display main fields
                 for key in important_fields:
                     if key in content and content[key]:
                         key_display = key.replace("_", " ").title()
                         st.markdown(f"**{key_display}:** {content[key]}")
-                
+
                 # Display recommendations last
                 if recommendations:
                     st.markdown("**Recommendations:**")
@@ -1280,17 +1375,21 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
                             st.markdown(f"- {rec}")
                     else:
                         st.markdown(recommendations)
-                        
+
                 # Handle any other keys
                 for key, value in content.items():
-                    if key not in important_fields and key != "recommendations" and key != "score":
+                    if (
+                        key not in important_fields
+                        and key != "recommendations"
+                        and key != "score"
+                    ):
                         key_display = key.replace("_", " ").title()
                         if isinstance(value, (dict, list)):
                             st.markdown(f"**{key_display}:**")
                             display_seo_content(value, prefix + "  ")
                         else:
                             st.markdown(f"**{key_display}:** {value}")
-            
+
             elif isinstance(content, list):
                 for item in content:
                     if isinstance(item, (dict, list)):
@@ -1299,13 +1398,13 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
                         st.markdown(f"{prefix}- {item}")
             else:
                 st.markdown(f"{prefix}{content}")
-                
+
         with st.expander("View SEO Optimization Details", expanded=False):
             if seo_score is not None:
                 stars = "⭐" * int(seo_score) + "☆" * (5 - int(seo_score))
                 st.markdown(f"**SEO Optimization Score: {stars} ({seo_score:.1f}/5)**")
             # Debug statements removed - UI is now clean
-            
+
             if content:
                 # Skip string display that contains raw JSON - only use our formatter
                 if isinstance(content, (int, float)):
@@ -1316,7 +1415,7 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
                         # Find potential JSON in the string
                         import json
                         import re
-                        
+
                         # First check if the entire string is valid JSON
                         json_parsed = False
                         try:
@@ -1325,13 +1424,13 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
                             json_parsed = True
                         except json.JSONDecodeError:
                             pass
-                            
+
                         # Only continue if we haven't successfully parsed JSON yet
                         if not json_parsed:
                             # Look for JSON object pattern within the string
-                            json_pattern = r'\{[\s\S]*\}'
+                            json_pattern = r"\{[\s\S]*\}"
                             match = re.search(json_pattern, content)
-                            
+
                             if match:
                                 potential_json = match.group(0)
                                 try:
@@ -1340,15 +1439,19 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
                                     json_parsed = True
                                 except json.JSONDecodeError:
                                     pass
-                    
+
                     except Exception as e:
                         st.warning(f"Error parsing SEO data: {str(e)}")
-                    
+
                     # If we get here and haven't parsed JSON successfully, display the cleaned string
                     if not json_parsed:
-                        cleaned = re.sub(r"SEO Optimization \([\-\d.]+/5\)\*\*:?:?\s*", "", content)
+                        cleaned = re.sub(
+                            r"SEO Optimization \([\-\d.]+/5\)\*\*:?:?\s*", "", content
+                        )
                         # Remove "SEO Optimization (3/5)" line that might be in the string
-                        cleaned = re.sub(r"SEO Optimization \([\d\.]+/5\)\s*\n", "", cleaned)
+                        cleaned = re.sub(
+                            r"SEO Optimization \([\d\.]+/5\)\s*\n", "", cleaned
+                        )
                         st.markdown(cleaned)
                 elif isinstance(content, (dict, list)):
                     # Display structured data nicely instead of raw JSON
@@ -1371,6 +1474,7 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
     # Robust extraction, similar to Thumbnail Analysis
     def try_parse_json_block(s):
         import json, re
+
         # Find the first JSON block inside triple backticks (optionally with 'json')
         match = re.search(r"```(?:json)?\s*({[\s\S]+?})\s*```", s, re.IGNORECASE)
         if match:
@@ -1463,7 +1567,9 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
                     st.markdown(f"    {strengths}")
 
             # Weaknesses
-            weaknesses = content_analysis_data.get("weaknesses") or content_analysis_data.get("areas_for_improvement")
+            weaknesses = content_analysis_data.get(
+                "weaknesses"
+            ) or content_analysis_data.get("areas_for_improvement")
             if weaknesses:
                 st.markdown("**Areas for Improvement / Weaknesses:**")
                 if isinstance(weaknesses, list):
@@ -1497,28 +1603,29 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
             audience_score = min(5.0, audience_score)
         except (TypeError, ValueError):
             audience_score = None
+
         # Define the engagement display function first
         def display_engagement_content(content, prefix=""):
             if isinstance(content, dict):
                 # First try to extract key fields of interest
                 important_fields = [
-                    "hook_strength", 
-                    "storytelling", 
-                    "ctas", 
-                    "community_potential"
+                    "hook_strength",
+                    "storytelling",
+                    "ctas",
+                    "community_potential",
                 ]
                 recommendations = None
-                
+
                 # Special handling for recommendations
                 if "recommendations" in content:
                     recommendations = content["recommendations"]
-                
+
                 # Display main fields
                 for key in important_fields:
                     if key in content and content[key]:
                         key_display = key.replace("_", " ").title()
                         st.markdown(f"**{key_display}:** {content[key]}")
-                
+
                 # Display recommendations last
                 if recommendations:
                     st.markdown("**Recommendations:**")
@@ -1527,17 +1634,21 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
                             st.markdown(f"- {rec}")
                     else:
                         st.markdown(recommendations)
-                        
+
                 # Handle any other keys
                 for key, value in content.items():
-                    if key not in important_fields and key != "recommendations" and key != "score":
+                    if (
+                        key not in important_fields
+                        and key != "recommendations"
+                        and key != "score"
+                    ):
                         key_display = key.replace("_", " ").title()
                         if isinstance(value, (dict, list)):
                             st.markdown(f"**{key_display}:**")
                             display_engagement_content(value, prefix + "  ")
                         else:
                             st.markdown(f"**{key_display}:** {value}")
-            
+
             elif isinstance(content, list):
                 for item in content:
                     if isinstance(item, (dict, list)):
@@ -1555,9 +1666,9 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
                 )
             else:
                 st.markdown("**Audience Engagement Score: N/A**")
-            
+
             # Debug statements removed - UI is now clean
-            
+
             if content:
                 # Skip string display that contains raw JSON - only use our formatter
                 if isinstance(content, (int, float)):
@@ -1568,7 +1679,7 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
                         # Find potential JSON in the string
                         import json
                         import re
-                        
+
                         # First check if the entire string is valid JSON
                         json_parsed = False
                         try:
@@ -1577,13 +1688,13 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
                             json_parsed = True
                         except json.JSONDecodeError:
                             pass
-                            
+
                         # Only continue if we haven't successfully parsed JSON yet
                         if not json_parsed:
                             # Look for JSON object pattern within the string
-                            json_pattern = r'\{[\s\S]*\}'
+                            json_pattern = r"\{[\s\S]*\}"
                             match = re.search(json_pattern, content)
-                            
+
                             if match:
                                 potential_json = match.group(0)
                                 try:
@@ -1592,15 +1703,21 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
                                     json_parsed = True
                                 except json.JSONDecodeError:
                                     pass
-                    
+
                     except Exception as e:
                         st.warning(f"Error parsing Audience Engagement data: {str(e)}")
-                    
+
                     # If we get here and haven't parsed JSON successfully, display the cleaned string
                     if not json_parsed:
-                        cleaned = re.sub(r"Audience Engagement \([\-\d.]+/5\)\*\*:?:?\s*", "", content)
+                        cleaned = re.sub(
+                            r"Audience Engagement \([\-\d.]+/5\)\*\*:?:?\s*",
+                            "",
+                            content,
+                        )
                         # Remove "Audience Engagement (3/5)" line that might be in the string
-                        cleaned = re.sub(r"Audience Engagement \([\d\.]+/5\)\s*\n", "", cleaned)
+                        cleaned = re.sub(
+                            r"Audience Engagement \([\d\.]+/5\)\s*\n", "", cleaned
+                        )
                         st.markdown(cleaned)
                 elif isinstance(content, (dict, list)):
                     # Display structured data nicely instead of raw JSON
@@ -1621,28 +1738,29 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
             tech_score = min(5.0, tech_score)
         except (TypeError, ValueError):
             tech_score = None
+
         # Define technical content display function first
         def display_technical_content(content, prefix=""):
             if isinstance(content, dict):
                 # First try to extract key fields of interest
                 important_fields = [
-                    "video_quality", 
-                    "audio_quality", 
-                    "length_appropriateness", 
-                    "accessibility"
+                    "video_quality",
+                    "audio_quality",
+                    "length_appropriateness",
+                    "accessibility",
                 ]
                 recommendations = None
-                
+
                 # Special handling for recommendations
                 if "recommendations" in content:
                     recommendations = content["recommendations"]
-                
+
                 # Display main fields
                 for key in important_fields:
                     if key in content and content[key]:
                         key_display = key.replace("_", " ").title()
                         st.markdown(f"**{key_display}:** {content[key]}")
-                
+
                 # Display recommendations last
                 if recommendations:
                     st.markdown("**Recommendations:**")
@@ -1651,17 +1769,21 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
                             st.markdown(f"- {rec}")
                     else:
                         st.markdown(recommendations)
-                        
+
                 # Handle any other keys
                 for key, value in content.items():
-                    if key not in important_fields and key != "recommendations" and key != "score":
+                    if (
+                        key not in important_fields
+                        and key != "recommendations"
+                        and key != "score"
+                    ):
                         key_display = key.replace("_", " ").title()
                         if isinstance(value, (dict, list)):
                             st.markdown(f"**{key_display}:**")
                             display_technical_content(value, prefix + "  ")
                         else:
                             st.markdown(f"**{key_display}:** {value}")
-            
+
             elif isinstance(content, list):
                 for item in content:
                     if isinstance(item, (dict, list)):
@@ -1679,9 +1801,9 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
                 )
             else:
                 st.markdown("**Technical Performance Score: N/A**")
-            
+
             # Debug statements removed - UI is now clean
-            
+
             if content:
                 # Skip string display that contains raw JSON - only use our formatter
                 if isinstance(content, (int, float)):
@@ -1692,7 +1814,7 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
                         # Find potential JSON in the string
                         import json
                         import re
-                        
+
                         # First check if the entire string is valid JSON
                         json_parsed = False
                         try:
@@ -1701,13 +1823,13 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
                             json_parsed = True
                         except json.JSONDecodeError:
                             pass
-                            
+
                         # Only continue if we haven't successfully parsed JSON yet
                         if not json_parsed:
                             # Look for JSON object pattern within the string
-                            json_pattern = r'\{[\s\S]*\}'
+                            json_pattern = r"\{[\s\S]*\}"
                             match = re.search(json_pattern, content)
-                            
+
                             if match:
                                 potential_json = match.group(0)
                                 try:
@@ -1716,21 +1838,31 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
                                     json_parsed = True
                                 except json.JSONDecodeError:
                                     pass
-                    
+
                     except Exception as e:
-                        st.warning(f"Error parsing Technical Performance data: {str(e)}")
-                    
+                        st.warning(
+                            f"Error parsing Technical Performance data: {str(e)}"
+                        )
+
                     # If we get here and haven't parsed JSON successfully, display the cleaned string
                     if not json_parsed:
-                        cleaned = re.sub(r"Technical Performance \([\-\d.]+/5\)\*\*:?:?\s*", "", content)
+                        cleaned = re.sub(
+                            r"Technical Performance \([\-\d.]+/5\)\*\*:?:?\s*",
+                            "",
+                            content,
+                        )
                         # Remove "Technical Performance (3/5)" line that might be in the string
-                        cleaned = re.sub(r"Technical Performance \([\d\.]+/5\)\s*\n", "", cleaned)
+                        cleaned = re.sub(
+                            r"Technical Performance \([\d\.]+/5\)\s*\n", "", cleaned
+                        )
                         st.markdown(cleaned)
                 elif isinstance(content, (dict, list)):
                     # Display structured data nicely instead of raw JSON
                     display_technical_content(content)
                 else:
-                    st.warning("Technical performance analysis data is not displayable.")
+                    st.warning(
+                        "Technical performance analysis data is not displayable."
+                    )
             else:
                 st.markdown("No technical performance analysis available.")
 
@@ -1796,34 +1928,36 @@ def display_analysis_results(analysis: Dict[str, Any]) -> None:
 
 def clean_response_text(response, for_chat=True):
     """Extract plain text from a potentially structured response.
-    
+
     Args:
         response: A response that could be plain text, a dict with 'text' key,
                  or a string representation of such a dict
         for_chat: If True, process for chat display (extract text from structures).
                   If False, preserve structured data (for analysis).
-                 
+
     Returns:
         str or dict: Cleaned response - plain text for chat or preserved structure for analysis
     """
     # Don't process structured data if not for chat display
     if not for_chat and isinstance(response, dict):
-        print(f"[clean_response_text] Preserving structured data for analysis: {type(response)}")
+        print(
+            f"[clean_response_text] Preserving structured data for analysis: {type(response)}"
+        )
         return response
-    
+
     # Return as is if None or empty
     if not response:
         return response
-        
+
     # Handle dictionary response for chat display
     if isinstance(response, dict) and "text" in response:
         print(f"[clean_response_text] Extracting text from dict: {response.keys()}")
         return response["text"]
-        
+
     # Handle string representation of dictionary for chat display
     if isinstance(response, str):
         # Check if it looks like a JSON object with a text key
-        if response.startswith('{') and response.endswith('}') and '"text"' in response:
+        if response.startswith("{") and response.endswith("}") and '"text"' in response:
             try:
                 # import json # Assuming json is imported at the top of the file
                 parsed = json.loads(response)
@@ -1832,25 +1966,33 @@ def clean_response_text(response, for_chat=True):
                     return parsed["text"]
             except json.JSONDecodeError:
                 # Not valid JSON, or JSON doesn't have 'text' key
-                print(f"[clean_response_text] Failed to parse as JSON or extract text, trying literal_eval.")
-                pass # Fall through to literal_eval or return original
+                print(
+                    f"[clean_response_text] Failed to parse as JSON or extract text, trying literal_eval."
+                )
+                pass  # Fall through to literal_eval or return original
 
         # Try ast.literal_eval for strings that look like Python dicts/lists
         # (e.g., "{'text': '...'}")
-        if response.strip().startswith('{') and response.strip().endswith('}'):
+        if response.strip().startswith("{") and response.strip().endswith("}"):
             try:
                 # import ast # Assuming ast is imported at the top of the file
                 parsed_literal = ast.literal_eval(response)
                 if isinstance(parsed_literal, dict) and "text" in parsed_literal:
-                    print(f"[clean_response_text] Extracted text using ast.literal_eval from dict-like string.")
+                    print(
+                        f"[clean_response_text] Extracted text using ast.literal_eval from dict-like string."
+                    )
                     return parsed_literal["text"]
             except (ValueError, SyntaxError, TypeError) as e:
                 # ast.literal_eval failed, it's likely just a plain string
-                print(f"[clean_response_text] ast.literal_eval failed ({e}), treating as plain string.")
-                pass # Fall through to return original response
-    
+                print(
+                    f"[clean_response_text] ast.literal_eval failed ({e}), treating as plain string."
+                )
+                pass  # Fall through to return original response
+
     # Return original if no transformation needed or possible
-    print(f"[clean_response_text] No specific cleaning applied, returning original: {type(response)}")
+    print(
+        f"[clean_response_text] No specific cleaning applied, returning original: {type(response)}"
+    )
     return response
 
 
@@ -1858,12 +2000,12 @@ def format_numbers_with_commas(text):
     """Format numbers in text with commas for thousands."""
     if not text:
         return text
-        
+
     import re
-    
+
     # Debug the incoming text to understand what we're processing
     print(f"[format_numbers] Processing text: {text[:100]}...")
-    
+
     # Use regex to find and replace numbers after specific labels
     # The patterns are designed to match various formats of views/likes/comments
     def add_commas(match):
@@ -1872,7 +2014,7 @@ def format_numbers_with_commas(text):
             prefix = match.group(1)  # The label part ("Views: ", etc.)
             number = match.group(2)  # The number part
             # Strip any existing commas before formatting
-            clean_number = number.replace(',', '')
+            clean_number = number.replace(",", "")
             formatted = f"{int(clean_number):,}"
             # Debug successful formatting
             print(f"[format_numbers] Formatted: {number} -> {formatted}")
@@ -1881,48 +2023,43 @@ def format_numbers_with_commas(text):
             # If any error occurs, return the original match
             print(f"[format_numbers] Error formatting: {e}")
             return match.group(0)
-    
+
     # Much more aggressive and comprehensive pattern matching
     # Cover all possible formats we've seen in the chat
     patterns = [
         # Basic formats with various spacing
-        (r'(Views:)\s*(\d+)', add_commas),
-        (r'(Likes:)\s*(\d+)', add_commas),
-        (r'(Comments:)\s*(\d+)', add_commas),
-        
+        (r"(Views:)\s*(\d+)", add_commas),
+        (r"(Likes:)\s*(\d+)", add_commas),
+        (r"(Comments:)\s*(\d+)", add_commas),
         # Bold markdown with various spacing
-        (r'(\*\*Views:\*\*)\s*(\d+)', add_commas),
-        (r'(\*\*Likes:\*\*)\s*(\d+)', add_commas),
-        (r'(\*\*Comments:\*\*)\s*(\d+)', add_commas),
-        
+        (r"(\*\*Views:\*\*)\s*(\d+)", add_commas),
+        (r"(\*\*Likes:\*\*)\s*(\d+)", add_commas),
+        (r"(\*\*Comments:\*\*)\s*(\d+)", add_commas),
         # With explicit space after colon
-        (r'(Views: )(\d+)', add_commas),
-        (r'(Likes: )(\d+)', add_commas),
-        (r'(Comments: )(\d+)', add_commas),
-        
+        (r"(Views: )(\d+)", add_commas),
+        (r"(Likes: )(\d+)", add_commas),
+        (r"(Comments: )(\d+)", add_commas),
         # Bold with explicit space after colon
-        (r'(\*\*Views:\*\* )(\d+)', add_commas),
-        (r'(\*\*Likes:\*\* )(\d+)', add_commas),
-        (r'(\*\*Comments:\*\* )(\d+)', add_commas),
-        
+        (r"(\*\*Views:\*\* )(\d+)", add_commas),
+        (r"(\*\*Likes:\*\* )(\d+)", add_commas),
+        (r"(\*\*Comments:\*\* )(\d+)", add_commas),
         # Handle potential variations in capitalization
-        (r'(VIEWS:)\s*(\d+)', add_commas),
-        (r'(LIKES:)\s*(\d+)', add_commas),
-        (r'(COMMENTS:)\s*(\d+)', add_commas),
-        
+        (r"(VIEWS:)\s*(\d+)", add_commas),
+        (r"(LIKES:)\s*(\d+)", add_commas),
+        (r"(COMMENTS:)\s*(\d+)", add_commas),
         # Handle variations with parentheses or brackets
-        (r'(Views[^\d]+)(\d+)', add_commas),
-        (r'(Likes[^\d]+)(\d+)', add_commas),
-        (r'(Comments[^\d]+)(\d+)', add_commas)
+        (r"(Views[^\d]+)(\d+)", add_commas),
+        (r"(Likes[^\d]+)(\d+)", add_commas),
+        (r"(Comments[^\d]+)(\d+)", add_commas),
     ]
-    
+
     # Apply each pattern and check if any changes were made
     original_text = text
     for pattern, replacement in patterns:
         text = re.sub(pattern, replacement, text)
-    
+
     # Extra safety check: directly target known patterns with fixed position lookups
-    for metric in ['Views', 'Likes', 'Comments']:
+    for metric in ["Views", "Likes", "Comments"]:
         # Look for patterns like "Views: 123456" with raw number extraction
         pattern = f"{metric}: (\d+)"
         matches = re.finditer(pattern, text)
@@ -1930,21 +2067,24 @@ def format_numbers_with_commas(text):
             try:
                 full_match = match.group(0)
                 number_part = match.group(1)
-                if ',' not in number_part:  # Only format if commas aren't already there
+                if "," not in number_part:  # Only format if commas aren't already there
                     formatted_number = f"{int(number_part):,}"
                     replacement = f"{metric}: {formatted_number}"
                     text = text.replace(full_match, replacement)
-                    print(f"[format_numbers] Direct replacement: {full_match} -> {replacement}")
+                    print(
+                        f"[format_numbers] Direct replacement: {full_match} -> {replacement}"
+                    )
             except Exception as e:
                 print(f"[format_numbers] Error in direct replacement: {str(e)}")
-    
+
     # Debug if formatting made any changes
     if original_text != text:
         print("[format_numbers] Formatting was applied successfully")
     else:
         print("[format_numbers] No formatting changes were made")
-    
+
     return text
+
 
 def display_chat():
     """Display the chat history from st.session_state.messages."""
@@ -1954,45 +2094,58 @@ def display_chat():
             if message.get("type") == "thinking_indicator":
                 st.markdown(message["content"])
                 continue
-                
+
             # Format response for display
             content_to_display = message.get("content", "")
             if isinstance(content_to_display, dict):
-                content_to_display = clean_response_text(content_to_display, for_chat=True)
+                content_to_display = clean_response_text(
+                    content_to_display, for_chat=True
+                )
             else:
-                content_to_display = clean_response_text(str(content_to_display), for_chat=True)
-            
+                content_to_display = clean_response_text(
+                    str(content_to_display), for_chat=True
+                )
+
             # GUARANTEED NUMBER FORMATTING: Always format numbers with commas
             # This is critical for consistent display
             message_type = message.get("type", "")
-            print(f"[display_chat] Processing message type: {message_type}, content starts with: {str(content_to_display)[:50]}...")
-            
+            print(
+                f"[display_chat] Processing message type: {message_type}, content starts with: {str(content_to_display)[:50]}..."
+            )
+
             # Apply aggressive number formatting
             original_content = content_to_display
             content_to_display = format_numbers_with_commas(content_to_display)
-            
+
             # If it's a video analysis, force direct replacements for key metrics
             if message_type == "video_analysis":
                 # Direct hard-coded replacements as an extra safety measure
                 import re
-                for metric in ['Views', 'Likes', 'Comments']:
+
+                for metric in ["Views", "Likes", "Comments"]:
                     pattern = f"\*\*{metric}\*\*: (\d+)"
                     matches = re.finditer(pattern, content_to_display)
                     for match in matches:
                         try:
                             num_str = match.group(1)
-                            if ',' not in num_str:  # Only format if commas aren't already there
+                            if (
+                                "," not in num_str
+                            ):  # Only format if commas aren't already there
                                 formatted_num = f"{int(num_str):,}"
                                 old_text = f"**{metric}**: {num_str}"
                                 new_text = f"**{metric}**: {formatted_num}"
-                                content_to_display = content_to_display.replace(old_text, new_text)
-                                print(f"[display_chat] Forced metric formatting: {old_text} -> {new_text}")
+                                content_to_display = content_to_display.replace(
+                                    old_text, new_text
+                                )
+                                print(
+                                    f"[display_chat] Forced metric formatting: {old_text} -> {new_text}"
+                                )
                         except Exception as e:
                             print(f"[display_chat] Error formatting {metric}: {str(e)}")
-            
+
             if content_to_display != original_content:
                 print(f"[display_chat] Successfully formatted numbers in message")
-            
+
             # Display the formatted content
             st.markdown(content_to_display)
 
@@ -2005,7 +2158,7 @@ def save_current_conversation():
         # Reset the flag after using it
         st.session_state.skip_save_for_current_chat = False
         return
-        
+
     current_chat_id = st.session_state.get("current_chat_id")
     if not current_chat_id:
         logger.warning("save_current_conversation called without current_chat_id.")
@@ -2013,15 +2166,21 @@ def save_current_conversation():
 
     current_messages = st.session_state.get("messages", [])
     current_analysis_data = st.session_state.get("current_analysis")
-    current_title = st.session_state.get("current_chat_title", f"Chat {current_chat_id[:8]}")
+    current_title = st.session_state.get(
+        "current_chat_title", f"Chat {current_chat_id[:8]}"
+    )
     current_video_url = st.session_state.get("current_video_url")
 
     # Only save if there's more than the initial assistant message OR if there's analysis data
     # The initial message is from the assistant.
-    has_meaningful_content = len(current_messages) > 1 or current_analysis_data is not None
+    has_meaningful_content = (
+        len(current_messages) > 1 or current_analysis_data is not None
+    )
 
     if not has_meaningful_content:
-        logger.info(f"Skipping save for chat {current_chat_id} as it has no meaningful content.")
+        logger.info(
+            f"Skipping save for chat {current_chat_id} as it has no meaningful content."
+        )
         return
 
     current_chat_data = {
@@ -2041,9 +2200,9 @@ def save_current_conversation():
             found_in_history = True
             logger.info(f"Updated existing chat in history: {current_chat_id}")
             break
-    
+
     if not found_in_history:
-        history.insert(0, current_chat_data) # Prepend to show most recent first
+        history.insert(0, current_chat_data)  # Prepend to show most recent first
         logger.info(f"Added new chat to history: {current_chat_id}")
 
     st.session_state.conversation_history = history[:MAX_HISTORY_ITEMS]
@@ -2082,14 +2241,22 @@ def generate_contextual_response(prompt: str, analysis: Dict[str, Any]) -> str:
 
     # Use Gemini to generate a comprehensive response
     # Helper function to be run in a thread
-    def _call_gemini_and_extract_text(gemini_client_instance, current_comprehensive_prompt, current_generation_config, original_timestamp_for_prompt_id):
+    def _call_gemini_and_extract_text(
+        gemini_client_instance,
+        current_comprehensive_prompt,
+        current_generation_config,
+        original_timestamp_for_prompt_id,
+    ):
         # This function encapsulates the original Gemini call and response processing logic.
         # It's designed to be executed in a separate thread.
         try:
-            print(f"THREAD: Sending comprehensive prompt to Gemini with Response ID: {original_timestamp_for_prompt_id}")
+            print(
+                f"THREAD: Sending comprehensive prompt to Gemini with Response ID: {original_timestamp_for_prompt_id}"
+            )
             # Original call to Gemini (from line 2004)
             response_obj = gemini_client_instance.generate_content(
-                current_comprehensive_prompt, generation_config=current_generation_config
+                current_comprehensive_prompt,
+                generation_config=current_generation_config,
             )
 
             # Original text extraction logic (lines 2009-2031 of original file)
@@ -2098,9 +2265,16 @@ def generate_contextual_response(prompt: str, analysis: Dict[str, Any]) -> str:
                     response_text = response_obj.text
                 elif hasattr(response_obj, "parts") and len(response_obj.parts) > 0:
                     response_text = response_obj.parts[0].text
-                elif hasattr(response_obj, "candidates") and len(response_obj.candidates) > 0:
+                elif (
+                    hasattr(response_obj, "candidates")
+                    and len(response_obj.candidates) > 0
+                ):
                     candidate = response_obj.candidates[0]
-                    if hasattr(candidate, "content") and hasattr(candidate.content, "parts") and len(candidate.content.parts) > 0:
+                    if (
+                        hasattr(candidate, "content")
+                        and hasattr(candidate.content, "parts")
+                        and len(candidate.content.parts) > 0
+                    ):
                         response_text = candidate.content.parts[0].text
                     else:
                         response_text = str(candidate)
@@ -2110,49 +2284,59 @@ def generate_contextual_response(prompt: str, analysis: Dict[str, Any]) -> str:
                 if not response_text or len(response_text.strip()) == 0:
                     response_text = "I couldn't generate a specific response to your question. Please try rephrasing or asking something else about this video."
             except Exception as e_extract:
-                print(f"THREAD: Error extracting text from Gemini response: {str(e_extract)}")
+                print(
+                    f"THREAD: Error extracting text from Gemini response: {str(e_extract)}"
+                )
                 # Raise an error to be caught by future.result() in the main thread
-                raise RuntimeError(f"Error extracting text from Gemini response: {str(e_extract)}") from e_extract
+                raise RuntimeError(
+                    f"Error extracting text from Gemini response: {str(e_extract)}"
+                ) from e_extract
 
             # Original debug logging (lines 2041-2042)
-            print(f"THREAD: Received response from Gemini with length: {len(response_text)}")
+            print(
+                f"THREAD: Received response from Gemini with length: {len(response_text)}"
+            )
             print(f"THREAD: Response preview: {response_text[:100]}...")
-            
+
             # Original enhanced parsing (lines 2050-2061)
             print(f"THREAD: Response before cleaning: {response_text[:100]}")
             if isinstance(response_text, str):
-                if response_text.strip().startswith('{') and '"text"' in response_text:
+                if response_text.strip().startswith("{") and '"text"' in response_text:
                     try:
                         # Ensure json is available (it's imported at the top of streamlit_app.py)
                         parsed_json = json.loads(response_text)
-                        if isinstance(parsed_json, dict) and 'text' in parsed_json:
-                            response_text = parsed_json['text']
+                        if isinstance(parsed_json, dict) and "text" in parsed_json:
+                            response_text = parsed_json["text"]
                             print("THREAD: Extracted text from JSON string")
                     except json.JSONDecodeError:
                         print("THREAD: Failed to parse as JSON, using as-is")
-            elif isinstance(response_text, dict) and 'text' in response_text:
-                response_text = response_text['text']
+            elif isinstance(response_text, dict) and "text" in response_text:
+                response_text = response_text["text"]
                 print("THREAD: Extracted text from dictionary response")
-            
+
             print(f"THREAD: Response after cleaning: {response_text[:100]}")
-            return response_text # Return the final cleaned text
+            return response_text  # Return the final cleaned text
         except Exception as e_main_gemini_call:
             # If Gemini call itself fails (original lines 2064-2068)
-            print(f"THREAD: Error generating response with Gemini: {str(e_main_gemini_call)}")
+            print(
+                f"THREAD: Error generating response with Gemini: {str(e_main_gemini_call)}"
+            )
             # Raise an exception to be caught by future.result() in the main thread
-            raise RuntimeError(f"Error generating response with Gemini: {str(e_main_gemini_call)}") from e_main_gemini_call
+            raise RuntimeError(
+                f"Error generating response with Gemini: {str(e_main_gemini_call)}"
+            ) from e_main_gemini_call
 
     # New logic using ThreadPoolExecutor
-    prompt_key = prompt # Use the original user prompt as the key for the future
-    
+    prompt_key = prompt  # Use the original user prompt as the key for the future
+
     # Create timestamp for tracking
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    
+
     # Create the comprehensive prompt for Gemini API
     # Include video URL in the prompt for better context
-    video_url = st.session_state.get('current_video_url', 'Unknown')
+    video_url = st.session_state.get("current_video_url", "Unknown")
     print(f"[DEBUG_TRACE] Including video URL in prompt: {video_url}")
-    
+
     comprehensive_prompt = f"""
     # YOUTUBE VIDEO ASSISTANT - RESPONSE GENERATION
     Response ID: {timestamp}_query
@@ -2208,7 +2392,7 @@ def generate_contextual_response(prompt: str, analysis: Dict[str, Any]) -> str:
     Format your response naturally, as if you are having a conversation.
     When recommending improvements, be constructive and positive.
     """
-    
+
     # Define generation config for consistent response
     generation_config = {
         "temperature": 0.7,
@@ -2216,42 +2400,51 @@ def generate_contextual_response(prompt: str, analysis: Dict[str, Any]) -> str:
         "top_k": 40,
         "max_output_tokens": 2048,
     }
-    
+
     gemini_client_to_use = st.session_state.gemini_client
 
     if prompt_key in st.session_state.gemini_futures:
         future = st.session_state.gemini_futures[prompt_key]
         if future.done():
             try:
-                response_text = future.result() # This will re-raise exceptions from the thread
-                del st.session_state.gemini_futures[prompt_key] # Clean up the future
+                response_text = (
+                    future.result()
+                )  # This will re-raise exceptions from the thread
+                del st.session_state.gemini_futures[prompt_key]  # Clean up the future
                 # Log success to console only
-                print(f"ASYNC_RESULT: Received response from Gemini with length: {len(response_text)}")
+                print(
+                    f"ASYNC_RESULT: Received response from Gemini with length: {len(response_text)}"
+                )
                 print(f"ASYNC_RESULT: Response preview: {response_text[:100]}...")
                 return response_text
             except Exception as e:
-                del st.session_state.gemini_futures[prompt_key] # Ensure cleanup on error
-                print(f"ASYNC_ERROR: Error getting result from Gemini future: {str(e)}", exc_info=True)
+                del st.session_state.gemini_futures[
+                    prompt_key
+                ]  # Ensure cleanup on error
+                print(
+                    f"ASYNC_ERROR: Error getting result from Gemini future: {str(e)}",
+                    exc_info=True,
+                )
                 # Return the error message similar to the original error handling (lines 2066-2068)
                 return f"I encountered an error processing your request (async). Error details: {str(e)}"
         else:
             print(f"Gemini response for '{prompt_key}' is still pending.")
-            return "PENDING_RESPONSE" # Special status to indicate processing
+            return "PENDING_RESPONSE"  # Special status to indicate processing
     else:
         print(f"Submitting Gemini call for '{prompt_key}' to thread pool.")
-        
+
         # 'timestamp' (original line 1938) is used in 'comprehensive_prompt'.
         # 'comprehensive_prompt' and 'generation_config' are already defined in the outer scope
         # of generate_contextual_response, before the original 'try' block.
         future = st.session_state.thread_executor.submit(
             _call_gemini_and_extract_text,
             gemini_client_to_use,
-            comprehensive_prompt, 
+            comprehensive_prompt,
             generation_config,
-            timestamp # This is the original timestamp from line 1938, used in the prompt's Response ID
+            timestamp,  # This is the original timestamp from line 1938, used in the prompt's Response ID
         )
         st.session_state.gemini_futures[prompt_key] = future
-        return "PENDING_RESPONSE" # Special status to indicate processing
+        return "PENDING_RESPONSE"  # Special status to indicate processing
 
 
 def process_user_input(new_prompt):
@@ -2259,188 +2452,240 @@ def process_user_input(new_prompt):
     if not new_prompt:
         # Return early if no input provided
         return
-        
+
     print(f"[DEBUG_TRACE] Processing new prompt: '{new_prompt}'")
-    
+
     # Initialize user_message at the beginning to avoid undefined variable errors
     # This ensures it's available in all code paths
     user_message = {"role": "user", "content": new_prompt}
-    
+
     # Important: DON'T append user message immediately for YouTube URLs with questions
     # We'll handle that specially if needed
-    
+
     # Check for YouTube URLs
     if "youtube.com" in new_prompt or "youtu.be" in new_prompt:
         # Extract the YouTube URL from the prompt
-        url_pattern = re.compile(r'(https?://(?:www\.)?(?:youtube\.com|youtu\.be)[^\s]+)')
+        url_pattern = re.compile(
+            r"(https?://(?:www\.)?(?:youtube\.com|youtu\.be)[^\s]+)"
+        )
         url_match = url_pattern.search(new_prompt)
         youtube_url = url_match.group(0) if url_match else new_prompt.strip()
-        
+
         # Check if there's additional text besides the URL
-        remaining_text = new_prompt.replace(youtube_url, '').strip()
-        
+        remaining_text = new_prompt.replace(youtube_url, "").strip()
+
         if remaining_text:  # There's additional text/question alongside the URL
-            print(f"[DEBUG_TRACE] URL with additional text detected: URL={youtube_url}, Question={remaining_text}")
-            
+            print(
+                f"[DEBUG_TRACE] URL with additional text detected: URL={youtube_url}, Question={remaining_text}"
+            )
+
             # Check if we already have analysis for this URL
             already_analyzed = False
-            
+
             # Check if current_video_url matches
-            if "current_video_url" in st.session_state and st.session_state.current_video_url == youtube_url:
-                already_analyzed = "current_analysis" in st.session_state and st.session_state.current_analysis
-            
+            if (
+                "current_video_url" in st.session_state
+                and st.session_state.current_video_url == youtube_url
+            ):
+                already_analyzed = (
+                    "current_analysis" in st.session_state
+                    and st.session_state.current_analysis
+                )
+
             # If not current, check conversation history
             if not already_analyzed:
                 for chat in st.session_state.get("conversation_history", []):
                     if chat.get("video_url") == youtube_url and chat.get("analysis"):
-                        print(f"[DEBUG_TRACE] Found existing analysis for URL in history")
+                        print(
+                            f"[DEBUG_TRACE] Found existing analysis for URL in history"
+                        )
                         st.session_state.current_video_url = youtube_url
-                        st.session_state.current_analysis = copy.deepcopy(chat.get("analysis"))
+                        st.session_state.current_analysis = copy.deepcopy(
+                            chat.get("analysis")
+                        )
                         already_analyzed = True
                         break
-                
+
             if already_analyzed:
                 print(f"[DEBUG_TRACE] Using existing analysis for URL: {youtube_url}")
-                
+
                 # IMPORTANT: Update session state first
                 st.session_state.current_video_url = youtube_url
-                
-                # Remove the original user message (which contained URL + question)
-                st.session_state.messages.pop()
-                
+
+                # DON'T remove any previous messages - this was causing the bug
+                # where previous responses would disappear
+
                 # Create user message with just the question and proper metadata
                 user_message = {
-                    "role": "user", 
-                    "content": remaining_text, 
-                    "video_url": youtube_url
+                    "role": "user",
+                    "content": remaining_text,
+                    "video_url": youtube_url,
                 }
                 st.session_state.messages.append(user_message)
-                
+
                 # Set up for response generation
                 st.session_state.current_processing_prompt = remaining_text
                 st.session_state.is_generating_response = True
-                
+
                 # Add thinking indicator with video context
                 thinking_msg = {
-                    "role": "assistant", 
-                    "content": "🤔 Thinking...", 
-                    "type": "thinking_indicator", 
-                    "video_url": youtube_url
+                    "role": "assistant",
+                    "content": "🤔 Thinking...",
+                    "type": "thinking_indicator",
+                    "video_url": youtube_url,
                 }
                 st.session_state.messages.append(thinking_msg)
-                
+
                 # Force save first to ensure context is maintained
                 save_current_conversation()
-                
+
                 # Set a special flag that we're coming from a URL+question scenario
                 # This flag will survive the rerun and tell the main flow not to analyze the video again
                 st.session_state.url_question_answered = True
-                
+
                 # Now force a rerun to trigger the response generation part
                 print(f"[DEBUG_TRACE] Forcing rerun for question: {remaining_text}")
                 st.rerun()
             else:
-                print(f"[DEBUG_TRACE] No existing analysis found, analyzing video: {youtube_url}")
+                print(
+                    f"[DEBUG_TRACE] No existing analysis found, analyzing video: {youtube_url}"
+                )
                 analyze_video(youtube_url)
                 # After analysis completes, we'll need to handle the question
                 st.session_state.pending_question = remaining_text
         else:
             # Just a URL with no additional text - but first check if we already analyzed it before
             is_already_analyzed = False
-            
+
             # Check if current_video_url matches
-            if "current_video_url" in st.session_state and st.session_state.current_video_url == new_prompt:
-                is_already_analyzed = "current_analysis" in st.session_state and st.session_state.current_analysis
-            
+            if (
+                "current_video_url" in st.session_state
+                and st.session_state.current_video_url == new_prompt
+            ):
+                is_already_analyzed = (
+                    "current_analysis" in st.session_state
+                    and st.session_state.current_analysis
+                )
+
             # If not current, check conversation history
             if not is_already_analyzed:
                 for chat in st.session_state.get("conversation_history", []):
                     if chat.get("video_url") == new_prompt and chat.get("analysis"):
                         st.session_state.current_video_url = new_prompt
-                        st.session_state.current_analysis = copy.deepcopy(chat.get("analysis"))
+                        st.session_state.current_analysis = copy.deepcopy(
+                            chat.get("analysis")
+                        )
                         is_already_analyzed = True
-                        print(f"[DEBUG_TRACE] Found existing analysis for URL in history: {new_prompt}")
+                        print(
+                            f"[DEBUG_TRACE] Found existing analysis for URL in history: {new_prompt}"
+                        )
                         break
-            
+
             # Now add user message to chat history with video URL metadata
             user_message = {"role": "user", "content": new_prompt}
             if "current_video_url" in st.session_state:
                 user_message["video_url"] = st.session_state.current_video_url
             st.session_state.messages.append(user_message)
-            
+
             if is_already_analyzed:
-                print(f"[DEBUG_TRACE] URL already analyzed, skipping re-analysis: {new_prompt}")
+                print(
+                    f"[DEBUG_TRACE] URL already analyzed, skipping re-analysis: {new_prompt}"
+                )
                 # Set up for response generation - no need to reanalyze
                 st.session_state.current_processing_prompt = "Tell me about this video"
                 st.session_state.is_generating_response = True
-                
+
                 # Add thinking indicator with video context
                 thinking_msg = {
-                    "role": "assistant", 
-                    "content": "🤔 Thinking...", 
-                    "type": "thinking_indicator", 
-                    "video_url": new_prompt
+                    "role": "assistant",
+                    "content": "🤔 Thinking...",
+                    "type": "thinking_indicator",
+                    "video_url": new_prompt,
                 }
                 st.session_state.messages.append(thinking_msg)
-                
+
                 # Force save first to ensure context is maintained
                 save_current_conversation()
-                
+
                 # Now force a rerun to trigger the response generation part
-                print(f"[DEBUG_TRACE] Forcing rerun to generate response for already analyzed URL")
+                print(
+                    f"[DEBUG_TRACE] Forcing rerun to generate response for already analyzed URL"
+                )
                 st.rerun()
             else:
                 # New URL that needs analysis
-                print(f"[DEBUG_TRACE] Prompt is a URL without additional text. Calling analyze_video for: {new_prompt}")
+                print(
+                    f"[DEBUG_TRACE] Prompt is a URL without additional text. Calling analyze_video for: {new_prompt}"
+                )
                 analyze_video(new_prompt)
                 # analyze_video should handle its own state, messages, and reruns.
                 # The save_current_conversation and rerun below will catch any state changes it makes if it doesn't rerun itself.
     elif "current_analysis" in st.session_state and st.session_state.current_analysis:
         print("[DEBUG_TRACE] Prompt is a question and current_analysis IS available.")
-            
+
         # Ensure video context is tracked and attached to the message
-        video_url = st.session_state.get('current_video_url')
+        video_url = st.session_state.get("current_video_url")
         if video_url:
             print(f"[DEBUG_TRACE] Video context available: {video_url}")
             user_message["video_url"] = video_url
         else:
             # Try to reconstruct video URL from analysis data if missing
-            if isinstance(st.session_state.current_analysis, dict) and 'video_id' in st.session_state.current_analysis:
-                video_id = st.session_state.current_analysis.get('video_id')
+            if (
+                isinstance(st.session_state.current_analysis, dict)
+                and "video_id" in st.session_state.current_analysis
+            ):
+                video_id = st.session_state.current_analysis.get("video_id")
                 if video_id:
                     reconstructed_url = f"https://www.youtube.com/watch?v={video_id}"
                     st.session_state.current_video_url = reconstructed_url
-                    print(f"[DEBUG_TRACE] Reconstructed video URL from ID: {reconstructed_url}")
+                    print(
+                        f"[DEBUG_TRACE] Reconstructed video URL from ID: {reconstructed_url}"
+                    )
                     user_message["video_url"] = reconstructed_url
-            
+
         # Add the user message if not already added
-        if len(st.session_state.messages) == 0 or st.session_state.messages[-1].get("role") != "user" or st.session_state.messages[-1].get("content") != new_prompt:
+        if (
+            len(st.session_state.messages) == 0
+            or st.session_state.messages[-1].get("role") != "user"
+            or st.session_state.messages[-1].get("content") != new_prompt
+        ):
             st.session_state.messages.append(user_message)
-            
+
         # Set up for response generation
         st.session_state.current_processing_prompt = new_prompt
         st.session_state.is_generating_response = True
-        
+
         # Add thinking indicator with video context
-        thinking_msg = {"role": "assistant", "content": "🤔 Thinking...", "type": "thinking_indicator"}
-        if st.session_state.get('current_video_url'):
-            thinking_msg["video_url"] = st.session_state.get('current_video_url')
-            
+        thinking_msg = {
+            "role": "assistant",
+            "content": "🤔 Thinking...",
+            "type": "thinking_indicator",
+        }
+        if st.session_state.get("current_video_url"):
+            thinking_msg["video_url"] = st.session_state.get("current_video_url")
+
         st.session_state.messages.append(thinking_msg)
-        print("[DEBUG_TRACE] Set flags for response generation, appended 'Thinking...'. Will save and rerun.")
-        
+        print(
+            "[DEBUG_TRACE] Set flags for response generation, appended 'Thinking...'. Will save and rerun."
+        )
+
         # Force save and rerun to show the thinking indicator
         save_current_conversation()
         st.rerun()
     else:  # Question, but no current_analysis
-        print("[DEBUG_TRACE] Prompt is a question but current_analysis IS NOT available.")
-        
+        print(
+            "[DEBUG_TRACE] Prompt is a question but current_analysis IS NOT available."
+        )
+
         # Try to restore analysis from history using video URL
         restored = False
         video_url = None
-        
+
         # Check if we have a video URL in the current session state
-        if "current_video_url" in st.session_state and st.session_state.current_video_url:
+        if (
+            "current_video_url" in st.session_state
+            and st.session_state.current_video_url
+        ):
             video_url = st.session_state.current_video_url
             print(f"[DEBUG_TRACE] Found current_video_url in session: {video_url}")
         else:
@@ -2448,247 +2693,365 @@ def process_user_input(new_prompt):
             for msg in reversed(st.session_state.messages):
                 if msg.get("video_url"):
                     video_url = msg["video_url"]
-                    print(f"[DEBUG_TRACE] Found video_url in message history: {video_url}")
+                    print(
+                        f"[DEBUG_TRACE] Found video_url in message history: {video_url}"
+                    )
                     break
-        
+
         if video_url:
             # Try to find the analysis in conversation history
             for chat in st.session_state.get("conversation_history", []):
                 if chat.get("video_url") == video_url and chat.get("analysis"):
                     st.session_state.current_video_url = video_url
-                    st.session_state.current_analysis = copy.deepcopy(chat.get("analysis"))
+                    st.session_state.current_analysis = copy.deepcopy(
+                        chat.get("analysis")
+                    )
                     restored = True
-                    print(f"[DEBUG_TRACE] Restored analysis from history for URL: {video_url}")
+                    print(
+                        f"[DEBUG_TRACE] Restored analysis from history for URL: {video_url}"
+                    )
                     break
-        
+
         if restored:
             # Successfully restored video context and analysis
             print("[DEBUG_TRACE] Successfully restored video context and analysis")
-            
+
             # Now handle as if analysis was available all along
             if "current_video_url" in st.session_state:
                 user_message["video_url"] = st.session_state.current_video_url
-            
+
             # Append user message if not already added
-            if not st.session_state.messages or st.session_state.messages[-1]["role"] != "user" or st.session_state.messages[-1]["content"] != new_prompt:
+            if (
+                not st.session_state.messages
+                or st.session_state.messages[-1]["role"] != "user"
+                or st.session_state.messages[-1]["content"] != new_prompt
+            ):
                 st.session_state.messages.append(user_message)
-            
+
             # Set up for response generation
             st.session_state.current_processing_prompt = new_prompt
             st.session_state.is_generating_response = True
-            
+
             # Add thinking indicator with video context
-            thinking_msg = {"role": "assistant", "content": "🤔 Thinking...", "type": "thinking_indicator"}
+            thinking_msg = {
+                "role": "assistant",
+                "content": "🤔 Thinking...",
+                "type": "thinking_indicator",
+            }
             if "current_video_url" in st.session_state:
                 thinking_msg["video_url"] = st.session_state.current_video_url
-            
+
             st.session_state.messages.append(thinking_msg)
-            print("[DEBUG_TRACE] Set flags for response generation with restored context. Will save and rerun.")
-            
+            print(
+                "[DEBUG_TRACE] Set flags for response generation with restored context. Will save and rerun."
+            )
+
             # Force save and rerun to show the thinking indicator
             save_current_conversation()
             st.rerun()
         else:
             # Could not restore video context
             print("[DEBUG_TRACE] Could not restore video context or analysis")
-            
+
             # Add user message to history if not already added
-            if not st.session_state.messages or st.session_state.messages[-1]["role"] != "user" or st.session_state.messages[-1]["content"] != new_prompt:
+            if (
+                not st.session_state.messages
+                or st.session_state.messages[-1]["role"] != "user"
+                or st.session_state.messages[-1]["content"] != new_prompt
+            ):
                 st.session_state.messages.append(user_message)
-            
+
             # Inform user they need to provide a video URL first
             no_analysis_response = "I can help analyze YouTube videos. Please provide a YouTube URL first, then ask your question."
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": no_analysis_response,
-                "type": "info"
-            })
-            logger.debug(f"[DEBUG_TRACE] Appended 'no analysis' message: {no_analysis_response[:100]}...")
-            
+            st.session_state.messages.append(
+                {"role": "assistant", "content": no_analysis_response, "type": "info"}
+            )
+            logger.debug(
+                f"[DEBUG_TRACE] Appended 'no analysis' message: {no_analysis_response[:100]}..."
+            )
+
             # Save and rerun
             save_current_conversation()
-            print(f"[DEBUG_TRACE] First pass: Conversation saved. Rerunning. Messages count: {len(st.session_state.messages)}")
+            print(
+                f"[DEBUG_TRACE] First pass: Conversation saved. Rerunning. Messages count: {len(st.session_state.messages)}"
+            )
             st.rerun()
+
 
 def handle_user_input():
     """Handle user input and generate responses."""
     # This function no longer handles new user inputs from the chat input box
     # It only manages the ongoing response generation process
     # New inputs are now handled directly in the main function
-    
+
     # Check if we're handling a follow-up question to an already analyzed URL
     if st.session_state.get("url_question_answered", False):
-        print("[DEBUG_TRACE] URL+question flag detected. Bypassing video analysis and proceeding to answer")
+        print(
+            "[DEBUG_TRACE] URL+question flag detected. Bypassing video analysis and proceeding to answer"
+        )
         # Clear the flag so it doesn't affect future interactions
         st.session_state.url_question_answered = False
-        
+
     # Part 1: Check for and handle ongoing response generation
-    if st.session_state.get("is_generating_response", False) and st.session_state.get("current_processing_prompt"):
-        print("[DEBUG_TRACE] Second pass: is_generating_response is True and current_processing_prompt exists.")
+    if st.session_state.get("is_generating_response", False) and st.session_state.get(
+        "current_processing_prompt"
+    ):
+        print(
+            "[DEBUG_TRACE] Second pass: is_generating_response is True and current_processing_prompt exists."
+        )
         prompt_to_process = st.session_state.current_processing_prompt
-        
+
         response_content = None
         try:
-            print(f"[DEBUG_TRACE] Attempting to call generate_contextual_response for: {prompt_to_process}")
+            print(
+                f"[DEBUG_TRACE] Attempting to call generate_contextual_response for: {prompt_to_process}"
+            )
             if not st.session_state.current_analysis:
-                print("[ERROR_TRACE] current_analysis is missing during second pass of response generation. Aborting response.")
+                print(
+                    "[ERROR_TRACE] current_analysis is missing during second pass of response generation. Aborting response."
+                )
                 # Pop the 'Thinking...' message first, if it exists as the last message
-                if st.session_state.messages and st.session_state.messages[-1].get("type") == "thinking_indicator":
+                if (
+                    st.session_state.messages
+                    and st.session_state.messages[-1].get("type")
+                    == "thinking_indicator"
+                ):
                     st.session_state.messages.pop()
-                    print("[DEBUG_TRACE] Popped 'Thinking...' message before appending error.")
-                
-                st.session_state.messages.append({
-                    "role": "assistant", 
-                    "content": "An issue occurred. Could not retrieve video analysis to generate response. Please try re-analyzing the video or asking a new question.", 
-                    "type": "error"
-                })
-                st.session_state.is_generating_response = False # Reset flags
+                    print(
+                        "[DEBUG_TRACE] Popped 'Thinking...' message before appending error."
+                    )
+
+                st.session_state.messages.append(
+                    {
+                        "role": "assistant",
+                        "content": "An issue occurred. Could not retrieve video analysis to generate response. Please try re-analyzing the video or asking a new question.",
+                        "type": "error",
+                    }
+                )
+                st.session_state.is_generating_response = False  # Reset flags
                 st.session_state.current_processing_prompt = None
                 save_current_conversation()
-                print("[DEBUG_TRACE] Second pass: Error due to missing analysis. Conversation saved. Rerunning.")
+                print(
+                    "[DEBUG_TRACE] Second pass: Error due to missing analysis. Conversation saved. Rerunning."
+                )
                 st.rerun()
-                return # Exit after handling the error
+                return  # Exit after handling the error
 
             analysis_data = st.session_state.current_analysis
-            response_content = generate_contextual_response(prompt_to_process, analysis_data)
-            print(f"[DEBUG_TRACE] Raw response from generate_contextual_response: {str(response_content)[:200]}...")
+            response_content = generate_contextual_response(
+                prompt_to_process, analysis_data
+            )
+            print(
+                f"[DEBUG_TRACE] Raw response from generate_contextual_response: {str(response_content)[:200]}..."
+            )
 
             if response_content == "PENDING_RESPONSE":
-                print("[DEBUG_TRACE] Second pass: Response is PENDING. Rerunning to check later.")
+                print(
+                    "[DEBUG_TRACE] Second pass: Response is PENDING. Rerunning to check later."
+                )
                 # The 'Thinking...' message is already displayed via display_chat and current_processing_prompt.
                 # No need to change current_processing_prompt or is_generating_response flags here.
                 # No need to save conversation yet.
-                st.rerun() # Trigger a rerun to re-check the future status
-                return     # Exit this execution of handle_user_input
-            
-            st.session_state.last_gemini_response = response_content # Store actual response if not pending
+                st.rerun()  # Trigger a rerun to re-check the future status
+                return  # Exit this execution of handle_user_input
+
+            st.session_state.last_gemini_response = (
+                response_content  # Store actual response if not pending
+            )
         except Exception as e:
             print(f"[DEBUG_TRACE] Error during generate_contextual_response: {str(e)}")
-            response_content = f"Error generating response: {str(e)}" # This will be cleaned
-        
+            response_content = (
+                f"Error generating response: {str(e)}"  # This will be cleaned
+            )
+
         cleaned_response = ""
         if response_content:
-            print(f"[DEBUG_TRACE] Raw response before cleaning: {str(response_content)[:200]}...")
+            print(
+                f"[DEBUG_TRACE] Raw response before cleaning: {str(response_content)[:200]}..."
+            )
             cleaned_response = clean_response_text(response_content, for_chat=True)
-            print(f"[DEBUG_TRACE] Response after cleaning: {str(cleaned_response)[:100]}...")
+            print(
+                f"[DEBUG_TRACE] Response after cleaning: {str(cleaned_response)[:100]}..."
+            )
         else:
             print("[DEBUG_TRACE] No response_content, using default error message.")
             cleaned_response = "Sorry, I couldn't generate a response at this time."
 
         # Pop the 'Thinking...' message if it's the last one
-        if st.session_state.messages and st.session_state.messages[-1].get("type") == "thinking_indicator":
+        if (
+            st.session_state.messages
+            and st.session_state.messages[-1].get("type") == "thinking_indicator"
+        ):
             st.session_state.messages.pop()
             print("[DEBUG_TRACE] Popped 'Thinking...' message.")
-        
+
         # Add video context to the response message if available
         response_message = {
-            "role": "assistant", 
-            "content": cleaned_response, 
-            "type": "contextual_response"
+            "role": "assistant",
+            "content": cleaned_response,
+            "type": "contextual_response",
         }
-        
+
         # Attach video URL to the response for context tracking
-        video_url = st.session_state.get('current_video_url')
+        video_url = st.session_state.get("current_video_url")
         if video_url:
-            response_message['video_url'] = video_url
+            response_message["video_url"] = video_url
             print(f"[DEBUG_TRACE] Added video URL to response: {video_url}")
-            
+
         st.session_state.messages.append(response_message)
-        logger.debug(f"[DEBUG_TRACE] Appended final assistant message: {cleaned_response[:100]}...")
-        
+        logger.debug(
+            f"[DEBUG_TRACE] Appended final assistant message: {cleaned_response[:100]}..."
+        )
+
         st.session_state.is_generating_response = False
         st.session_state.current_processing_prompt = None
-        print("[DEBUG_TRACE] Reset is_generating_response and current_processing_prompt.")
+        print(
+            "[DEBUG_TRACE] Reset is_generating_response and current_processing_prompt."
+        )
 
         save_current_conversation()
-        print(f"[DEBUG_TRACE] Second pass: Conversation saved. Rerunning. Messages count: {len(st.session_state.messages)}")
+        print(
+            f"[DEBUG_TRACE] Second pass: Conversation saved. Rerunning. Messages count: {len(st.session_state.messages)}"
+        )
         st.rerun()
-        return # Exit after handling the ongoing response generation
+        return  # Exit after handling the ongoing response generation
 
     # Part 2: Handle new user input from chat_input (first pass)
     if st.session_state.get("just_created_new_chat", False):
-        st.session_state.just_created_new_chat = False # Consume the flag
-        print("[DEBUG_TRACE] 'just_created_new_chat' is True. Continuing to render input box but will ignore any carried-over input.")
+        st.session_state.just_created_new_chat = False  # Consume the flag
+        print(
+            "[DEBUG_TRACE] 'just_created_new_chat' is True. Continuing to render input box but will ignore any carried-over input."
+        )
         # Instead of returning early, we'll continue to render the input box
         # but we'll ignore any inputs that might have carried over
-    
+
     # This functionality has been moved to the main function
     # DO NOT process new prompts here to avoid duplicate chat inputs
     if False:  # This condition ensures this code never runs
-        print(f"[DEBUG_TRACE] This code block is disabled to prevent duplicate input boxes")
-        
+        print(
+            f"[DEBUG_TRACE] This code block is disabled to prevent duplicate input boxes"
+        )
+
         # The following code is kept for reference but never executes
         user_message = {"role": "user", "content": "example"}
-        
+
         # For follow-up questions, preserve video context from session state
-        if "current_video_url" in st.session_state and st.session_state.current_video_url and not ("youtube.com" in new_prompt or "youtu.be" in new_prompt):
-            print(f"[DEBUG_TRACE] Adding existing video context to message: {st.session_state.current_video_url}")
+        if (
+            "current_video_url" in st.session_state
+            and st.session_state.current_video_url
+            and not ("youtube.com" in new_prompt or "youtu.be" in new_prompt)
+        ):
+            print(
+                f"[DEBUG_TRACE] Adding existing video context to message: {st.session_state.current_video_url}"
+            )
             user_message["video_url"] = st.session_state.current_video_url
-        
+
         if "youtube.com" in new_prompt or "youtu.be" in new_prompt:
             # Check for our special flag that indicates we've already handled this URL+question
             if st.session_state.get("url_question_answered"):
-                print(f"[DEBUG_TRACE] Found url_question_answered flag. Skipping re-analysis and proceeding to answer the question.")
+                print(
+                    f"[DEBUG_TRACE] Found url_question_answered flag. Skipping re-analysis and proceeding to answer the question."
+                )
                 # Clear the flag as we're handling it now
                 st.session_state.url_question_answered = False
                 # The message is already in session state from the previous step, so just continue below
                 # The current_video_url and current_analysis are already set
             else:
                 # Track video URL in session state for context persistence
-                print(f"[DEBUG_TRACE] Prompt contains URL. Setting current_video_url and analyzing...")
+                print(
+                    f"[DEBUG_TRACE] Prompt contains URL. Setting current_video_url and analyzing..."
+                )
                 st.session_state.current_video_url = new_prompt
                 user_message["video_url"] = new_prompt  # Add to message metadata
-                
+
                 # Append message and analyze
                 st.session_state.messages.append(user_message)
-                analyze_video(new_prompt) 
+                analyze_video(new_prompt)
                 # analyze_video should handle its own state, messages, and reruns.
                 # The save_current_conversation and rerun below will catch any state changes if needed.
-        elif "current_analysis" in st.session_state and st.session_state.current_analysis:
-            print("[DEBUG_TRACE] Prompt is a question and current_analysis IS available.")
-            
+        elif (
+            "current_analysis" in st.session_state and st.session_state.current_analysis
+        ):
+            print(
+                "[DEBUG_TRACE] Prompt is a question and current_analysis IS available."
+            )
+
             # Ensure video context is tracked properly
-            if "current_video_url" in st.session_state and st.session_state.current_video_url:
-                print(f"[DEBUG_TRACE] Video context available: {st.session_state.current_video_url}")
+            if (
+                "current_video_url" in st.session_state
+                and st.session_state.current_video_url
+            ):
+                print(
+                    f"[DEBUG_TRACE] Video context available: {st.session_state.current_video_url}"
+                )
             else:
                 # Try to reconstruct video URL from analysis if missing
-                if isinstance(st.session_state.current_analysis, dict) and "video_id" in st.session_state.current_analysis:
+                if (
+                    isinstance(st.session_state.current_analysis, dict)
+                    and "video_id" in st.session_state.current_analysis
+                ):
                     video_id = st.session_state.current_analysis.get("video_id")
                     if video_id:
-                        reconstructed_url = f"https://www.youtube.com/watch?v={video_id}"
+                        reconstructed_url = (
+                            f"https://www.youtube.com/watch?v={video_id}"
+                        )
                         st.session_state.current_video_url = reconstructed_url
-                        print(f"[DEBUG_TRACE] Reconstructed video URL from analysis: {reconstructed_url}")
-            
+                        print(
+                            f"[DEBUG_TRACE] Reconstructed video URL from analysis: {reconstructed_url}"
+                        )
+
             # Add the user message with video context if available
-            if "current_video_url" in st.session_state and st.session_state.current_video_url:
+            if (
+                "current_video_url" in st.session_state
+                and st.session_state.current_video_url
+            ):
                 user_message["video_url"] = st.session_state.current_video_url
-            
+
             # Append user message if not added yet
-            if not st.session_state.messages or st.session_state.messages[-1]["role"] != "user" or st.session_state.messages[-1]["content"] != new_prompt:
+            if (
+                not st.session_state.messages
+                or st.session_state.messages[-1]["role"] != "user"
+                or st.session_state.messages[-1]["content"] != new_prompt
+            ):
                 st.session_state.messages.append(user_message)
-            
+
             # Set up for response generation
             st.session_state.current_processing_prompt = new_prompt
             st.session_state.is_generating_response = True
-            
+
             # Add thinking indicator with video context
-            thinking_msg = {"role": "assistant", "content": "🤔 Thinking...", "type": "thinking_indicator"}
-            if "current_video_url" in st.session_state and st.session_state.current_video_url:
+            thinking_msg = {
+                "role": "assistant",
+                "content": "🤔 Thinking...",
+                "type": "thinking_indicator",
+            }
+            if (
+                "current_video_url" in st.session_state
+                and st.session_state.current_video_url
+            ):
                 thinking_msg["video_url"] = st.session_state.current_video_url
-            
+
             st.session_state.messages.append(thinking_msg)
-            print("[DEBUG_TRACE] Set flags for response generation, appended 'Thinking...'. Will save and rerun.")
-        else: # Question, but no current_analysis
-            print("[DEBUG_TRACE] Prompt is a question but current_analysis IS NOT available.")
+            print(
+                "[DEBUG_TRACE] Set flags for response generation, appended 'Thinking...'. Will save and rerun."
+            )
+        else:  # Question, but no current_analysis
+            print(
+                "[DEBUG_TRACE] Prompt is a question but current_analysis IS NOT available."
+            )
             no_analysis_response = "No current analysis. Please provide a YouTube URL first so I can answer questions about it."
             st.session_state.messages.append(
                 {"role": "assistant", "content": no_analysis_response, "type": "info"}
             )
-            logger.debug(f"[DEBUG_TRACE] Appended 'no analysis' message: {no_analysis_response[:100]}...")
+            logger.debug(
+                f"[DEBUG_TRACE] Appended 'no analysis' message: {no_analysis_response[:100]}..."
+            )
 
         # Common save and rerun for all new prompt scenarios.
         save_current_conversation()
-        print(f"[DEBUG_TRACE] First pass: Conversation saved. Rerunning. Messages count: {len(st.session_state.messages)}")
+        print(
+            f"[DEBUG_TRACE] First pass: Conversation saved. Rerunning. Messages count: {len(st.session_state.messages)}"
+        )
         st.rerun()
     else:
         # This else corresponds to `if new_prompt := st.chat_input(...)`
@@ -2696,7 +3059,9 @@ def handle_user_input():
         # This is normal during the "second pass" after 'Thinking...' is shown,
         # as the script reruns and `st.chat_input` returns None.
         # The logic in "Part 1" handles the ongoing response generation.
-        print("[DEBUG_TRACE] No new prompt received from st.chat_input (normal for second pass or no interaction).")
+        print(
+            "[DEBUG_TRACE] No new prompt received from st.chat_input (normal for second pass or no interaction)."
+        )
 
 
 def analyze_video(video_url: str):
@@ -2708,13 +3073,19 @@ def analyze_video(video_url: str):
     """
     # First check if this video has already been analyzed
     already_analyzed = False
-    
+
     # First check current session state
-    if "current_video_url" in st.session_state and "current_analysis" in st.session_state and st.session_state.current_analysis:
+    if (
+        "current_video_url" in st.session_state
+        and "current_analysis" in st.session_state
+        and st.session_state.current_analysis
+    ):
         if st.session_state.current_video_url == video_url:
             already_analyzed = True
-            print(f"[DEBUG_TRACE] Video already analyzed in current session, skipping re-analysis: {video_url}")
-    
+            print(
+                f"[DEBUG_TRACE] Video already analyzed in current session, skipping re-analysis: {video_url}"
+            )
+
     # Then check conversation history if not found in current session
     if not already_analyzed and "conversation_history" in st.session_state:
         for chat in st.session_state.conversation_history:
@@ -2723,19 +3094,25 @@ def analyze_video(video_url: str):
                 already_analyzed = True
                 st.session_state.current_video_url = video_url
                 st.session_state.current_analysis = copy.deepcopy(chat.get("analysis"))
-                print(f"[DEBUG_TRACE] Found existing analysis in chat history, using that instead: {video_url}")
+                print(
+                    f"[DEBUG_TRACE] Found existing analysis in chat history, using that instead: {video_url}"
+                )
                 break
-            
+
             # Also check individual messages for video URLs
             if not already_analyzed and chat.get("messages"):
                 for msg in chat.get("messages", []):
                     if msg.get("video_url") == video_url and chat.get("analysis"):
                         already_analyzed = True
                         st.session_state.current_video_url = video_url
-                        st.session_state.current_analysis = copy.deepcopy(chat.get("analysis"))
-                        print(f"[DEBUG_TRACE] Found existing analysis in message history, using that instead: {video_url}")
+                        st.session_state.current_analysis = copy.deepcopy(
+                            chat.get("analysis")
+                        )
+                        print(
+                            f"[DEBUG_TRACE] Found existing analysis in message history, using that instead: {video_url}"
+                        )
                         break
-    
+
     # If we found existing analysis, handle any pending questions and skip re-analyzing
     if already_analyzed:
         # If there's a pending question, handle it now
@@ -2744,32 +3121,30 @@ def analyze_video(video_url: str):
             # Clear the pending question
             st.session_state.pending_question = None
             print(f"[DEBUG_TRACE] Processing pending question: {question}")
-            
+
             # Add the question as a separate user message
-            st.session_state.messages.append({
-                "role": "user", 
-                "content": question,
-                "video_url": video_url
-            })
-            
+            st.session_state.messages.append(
+                {"role": "user", "content": question, "video_url": video_url}
+            )
+
             # Set up for response generation
             st.session_state.current_processing_prompt = question
             st.session_state.is_generating_response = True
-            
+
             # Add thinking indicator with video context
             thinking_msg = {
-                "role": "assistant", 
-                "content": "🤔 Thinking...", 
+                "role": "assistant",
+                "content": "🤔 Thinking...",
                 "type": "thinking_indicator",
-                "video_url": video_url
+                "video_url": video_url,
             }
             st.session_state.messages.append(thinking_msg)
-            
+
             # Save conversation and rerun to trigger response generation
             save_current_conversation()
             st.rerun()
         return  # Skip analysis if video already analyzed
-    
+
     with st.chat_message("assistant"):
         with st.spinner("🔍 Analyzing video..."):
             try:
@@ -2852,21 +3227,27 @@ def analyze_video(video_url: str):
 
                 # Store the complete analysis in session state for both display and contextual responses
                 # Make sure we don't accidentally clean the structured data
-                print(f"Storing analysis with type: {type(complete_analysis)} and keys: {complete_analysis.keys() if hasattr(complete_analysis, 'keys') else 'no keys'}")
-                
+                print(
+                    f"Storing analysis with type: {type(complete_analysis)} and keys: {complete_analysis.keys() if hasattr(complete_analysis, 'keys') else 'no keys'}"
+                )
+
                 # Explicitly protect the analysis from being processed as a chat response
                 st.session_state.analysis = copy.deepcopy(complete_analysis)
                 st.session_state.current_analysis = copy.deepcopy(complete_analysis)
-                
+
                 # Track video URL for context maintenance
                 st.session_state.current_video_url = video_url
                 logger.info(f"Set current_video_url to: {video_url}")
-                
+
                 # Verify the stored analysis maintains its structure
-                if 'analysis' in st.session_state:
-                    print(f"Verified: Analysis stored with type: {type(st.session_state.analysis)}")
-                    if hasattr(st.session_state.analysis, 'keys'):
-                        print(f"Verified: Analysis contains keys: {list(st.session_state.analysis.keys())}")
+                if "analysis" in st.session_state:
+                    print(
+                        f"Verified: Analysis stored with type: {type(st.session_state.analysis)}"
+                    )
+                    if hasattr(st.session_state.analysis, "keys"):
+                        print(
+                            f"Verified: Analysis contains keys: {list(st.session_state.analysis.keys())}"
+                        )
                 else:
                     print("WARNING: Analysis not properly stored in session state")
 
@@ -2900,67 +3281,79 @@ def analyze_video(video_url: str):
                 response += f"**Channel**: {channel}\n\n"
                 response += f"**Duration**: {duration}\n\n"
                 response += f"**Published**: {published_date}\n\n"
-                
-                # Format view count with commas for thousands - Force string formatting 
-                view_count = analysis_result['metadata'].get('view_count', 'Unknown')
+
+                # Format view count with commas for thousands - Force string formatting
+                view_count = analysis_result["metadata"].get("view_count", "Unknown")
                 if isinstance(view_count, (int, float)):
                     # Use formatted string with commas
                     view_count_str = f"{int(view_count):,}"
-                    print(f"[analyze_video] Formatted view count: {view_count} -> {view_count_str}")
+                    print(
+                        f"[analyze_video] Formatted view count: {view_count} -> {view_count_str}"
+                    )
                     response += f"**Views**: {view_count_str}\n\n"
                 else:
                     response += f"**Views**: {view_count}\n\n"
-                
+
                 # Format like count with commas - Force string formatting
-                like_count = analysis_result['metadata'].get('like_count', 'Unknown')
+                like_count = analysis_result["metadata"].get("like_count", "Unknown")
                 if isinstance(like_count, (int, float)):
                     # Use formatted string with commas
                     like_count_str = f"{int(like_count):,}"
-                    print(f"[analyze_video] Formatted like count: {like_count} -> {like_count_str}")
+                    print(
+                        f"[analyze_video] Formatted like count: {like_count} -> {like_count_str}"
+                    )
                     response += f"**Likes**: {like_count_str}\n\n"
                 else:
                     response += f"**Likes**: {like_count}\n\n"
-                
+
                 # Format comment count with commas - Force string formatting
                 if isinstance(comment_count, (int, float)):
                     # Use formatted string with commas
                     comment_count_str = f"{int(comment_count):,}"
-                    print(f"[analyze_video] Formatted comment count: {comment_count} -> {comment_count_str}")
+                    print(
+                        f"[analyze_video] Formatted comment count: {comment_count} -> {comment_count_str}"
+                    )
                     response += f"**Comments**: {comment_count_str}\n\n"
                 else:
                     response += f"**Comments**: {comment_count}\n\n"
                 # Use the same overall score calculation as in the analysis section
-                if 'factors' in score_result:
-                    factors = score_result['factors']
+                if "factors" in score_result:
+                    factors = score_result["factors"]
                     available_scores = []
-                    
+
                     # Get scores from all factors - same logic as in display_analysis_results
                     performance_categories = [
                         {"key": "hook_quality"},
                         {"key": "seo_optimization"},
                         {"key": "content_quality"},
                         {"key": "engagement_metrics"},
-                        {"key": "technical_quality"}
+                        {"key": "technical_quality"},
                     ]
-                    
+
                     for category in performance_categories:
                         factor_key = category["key"]
                         if factor_key in factors and "score" in factors[factor_key]:
                             try:
-                                score_value = min(5.0, float(factors[factor_key]["score"]))
+                                score_value = min(
+                                    5.0, float(factors[factor_key]["score"])
+                                )
                                 available_scores.append(score_value)
                             except (ValueError, TypeError):
                                 pass
-                    
+
                     # Calculate overall score using the same method as display_analysis_results
                     if available_scores:
-                        computed_overall_score = sum(available_scores) / len(available_scores)
+                        computed_overall_score = sum(available_scores) / len(
+                            available_scores
+                        )
                         overall_score = min(5.0, round(computed_overall_score, 1))
                     else:
-                        overall_score = min(5.0, float(score_result.get('overall_score', 0)))
+                        overall_score = min(
+                            5.0, float(score_result.get("overall_score", 0))
+                        )
                 else:
-                    overall_score = score_result.get('overall_score', 'N/A')
-                    
+                    overall_score = score_result.get("overall_score", "N/A")
+
                 response += f"**Overall Score**: {overall_score}/5\n\n"
 
                 # Add top 3 recommendations
@@ -2978,30 +3371,41 @@ def analyze_video(video_url: str):
 
                 # Run the format_numbers_with_commas function for consistent formatting
                 formatted_response = format_numbers_with_commas(response)
-                
+
                 # Additional safety check: directly scan for numbers to format in key metrics
                 import re
-                for metric in ['Views', 'Likes', 'Comments']:
+
+                for metric in ["Views", "Likes", "Comments"]:
                     pattern = f"\*\*{metric}\*\*: (\d+)"
                     matches = re.finditer(pattern, formatted_response)
                     for match in matches:
                         try:
                             num_str = match.group(1)
-                            if ',' not in num_str:  # Only format if commas aren't already there
+                            if (
+                                "," not in num_str
+                            ):  # Only format if commas aren't already there
                                 formatted_num = f"{int(num_str):,}"
                                 old_text = f"**{metric}**: {num_str}"
                                 new_text = f"**{metric}**: {formatted_num}"
-                                formatted_response = formatted_response.replace(old_text, new_text)
-                                print(f"[analyze_video] Forced metric formatting: {old_text} -> {new_text}")
+                                formatted_response = formatted_response.replace(
+                                    old_text, new_text
+                                )
+                                print(
+                                    f"[analyze_video] Forced metric formatting: {old_text} -> {new_text}"
+                                )
                         except Exception as e:
-                            print(f"[analyze_video] Error formatting {metric}: {str(e)}")
-                
+                            print(
+                                f"[analyze_video] Error formatting {metric}: {str(e)}"
+                            )
+
                 # Log the formatted response for debugging
-                print(f"[analyze_video] Final formatted response before adding to chat history: {formatted_response[:100]}...")
+                print(
+                    f"[analyze_video] Final formatted response before adding to chat history: {formatted_response[:100]}..."
+                )
 
                 # Add formatted analysis to chat UI - this is what the user will see immediately
                 st.markdown(formatted_response)
-                
+
                 # Add to session state messages with the properly formatted response
                 # This ensures formatting is preserved in the chat history
                 st.session_state.messages.append(
@@ -3012,7 +3416,7 @@ def analyze_video(video_url: str):
                         "type": "video_analysis",
                     }
                 )
-                
+
                 # Save the conversation to persist the formatted message
                 save_current_conversation()
 
@@ -3027,37 +3431,44 @@ def analyze_video(video_url: str):
 
                 # Save the conversation to history immediately after analysis is complete
                 save_current_conversation()
-                
+
                 # Check if there's a pending question to answer after analysis
-                if "pending_question" in st.session_state and st.session_state.pending_question:
-                    print(f"[DEBUG_TRACE] Found pending question after analysis: {st.session_state.pending_question}")
+                if (
+                    "pending_question" in st.session_state
+                    and st.session_state.pending_question
+                ):
+                    print(
+                        f"[DEBUG_TRACE] Found pending question after analysis: {st.session_state.pending_question}"
+                    )
                     question = st.session_state.pending_question
                     # Clear the pending question to avoid processing it multiple times
                     st.session_state.pending_question = None
-                    
+
                     # Add the user's question as a new message
                     question_message = {
-                        "role": "user", 
+                        "role": "user",
                         "content": question,
-                        "video_url": video_url
+                        "video_url": video_url,
                     }
                     st.session_state.messages.append(question_message)
-                    
+
                     # Add thinking indicator
-                    st.session_state.messages.append({
-                        "role": "assistant", 
-                        "content": "🤔 Thinking...", 
-                        "type": "thinking_indicator",
-                        "video_url": video_url
-                    })
-                    
+                    st.session_state.messages.append(
+                        {
+                            "role": "assistant",
+                            "content": "🤔 Thinking...",
+                            "type": "thinking_indicator",
+                            "video_url": video_url,
+                        }
+                    )
+
                     # Set up for response generation
                     st.session_state.current_processing_prompt = question
                     st.session_state.is_generating_response = True
-                    
+
                     # Save state before rerunning
                     save_current_conversation()
-                
+
                 # Force UI update to refresh the sidebar with the new analysis
                 st.rerun()
 
@@ -3079,11 +3490,11 @@ def reformat_existing_messages():
     if "messages" not in st.session_state:
         print("[reformat] No messages in session state")
         return
-        
+
     # Get all messages
     messages = st.session_state.messages
     print(f"[reformat] Found {len(messages)} messages in session state")
-    
+
     # Loop through messages and reformat content
     changes_made = False
     for i, message in enumerate(messages):
@@ -3091,27 +3502,27 @@ def reformat_existing_messages():
             # Apply formatting to the content
             content = message["content"]
             print(f"[reformat] Processing message {i}: {content[:50]}...")
-            
+
             # Format numbers in the content
             formatted_content = format_numbers_with_commas(content)
-            
+
             # Update the message content
             if formatted_content != content:
                 print(f"[reformat] Updated message {i} with formatted numbers")
                 messages[i]["content"] = formatted_content
                 changes_made = True
-    
+
     # Update session state only if changes were made
     if changes_made:
         print("[reformat] Updating session state with reformatted messages")
         st.session_state.messages = messages
-        
+
         # Also update the conversation history to persist the changes
         print("[reformat] Saving changes to conversation history")
         save_current_conversation()
     else:
         print("[reformat] No formatting changes were needed")
-        
+
     # Force re-display of messages if needed
     if changes_made:
         try:
@@ -3125,14 +3536,15 @@ def reformat_existing_messages():
                 print("[reformat] Could not force rerun - continuing without refresh")
                 pass
 
+
 def main():
     """Main function to run the Streamlit app."""
     load_chat_history()
     init_session_state()
-    
+
     # Apply formatting to existing messages
     reformat_existing_messages()
-    
+
     setup_ui()
 
     # Create tabs for chat and analysis
@@ -3141,15 +3553,15 @@ def main():
     # Display chat in the Chat tab
     with tab1:
         display_chat()
-        
+
         # Handle user input with the chat input box
         user_prompt = st.chat_input("Paste a YouTube URL or ask a question...")
-        
+
         # Only process user input if something was entered and we're not mid-processing
         if user_prompt and not st.session_state.get("is_generating_response", False):
             # Process the user input - this now handles URL detection and manages url_question_answered flag
             process_user_input(user_prompt)
-        
+
         # Always call handle_user_input to manage ongoing response generation
         # This function will check the url_question_answered flag and other state variables
         handle_user_input()
@@ -3162,11 +3574,13 @@ def main():
     with tab2:
         # Add debug information about analysis data
         print(f"Analysis data available: {'analysis' in st.session_state}")
-        if 'analysis' in st.session_state:
+        if "analysis" in st.session_state:
             print(f"Analysis data type: {type(st.session_state.analysis)}")
             if st.session_state.analysis:
-                print(f"Analysis keys: {st.session_state.analysis.keys() if hasattr(st.session_state.analysis, 'keys') else 'No keys method'}")
-        
+                print(
+                    f"Analysis keys: {st.session_state.analysis.keys() if hasattr(st.session_state.analysis, 'keys') else 'No keys method'}"
+                )
+
         if st.session_state.analysis:
             # Add a message to confirm we're trying to display analysis
             print("Attempting to display analysis results...")
