@@ -335,7 +335,9 @@ class GeminiClient:
                         )
                         if isinstance(candidate_text_val, str):
                             # Return plain text directly instead of wrapping in a dictionary
-                            logger.info("[GeminiClient][Parse][Text] Returning plain text response from candidate")
+                            logger.info(
+                                "[GeminiClient][Parse][Text] Returning plain text response from candidate"
+                            )
                             return candidate_text_val
                         else:
                             logger.error(
@@ -539,17 +541,25 @@ class GeminiClient:
             TitleAnalysisSchema,
             ThumbnailAnalysisSchema,
             SEOAnalysisSchema,
-            AudienceEngagementSchema, 
+            AudienceEngagementSchema,
             TechnicalPerformanceSchema,
         )
 
         # Generate schema definitions for all sections
-        content_quality_schema_definition = ContentQualityAnalysisSchema.schema_json(indent=2)
+        content_quality_schema_definition = ContentQualityAnalysisSchema.schema_json(
+            indent=2
+        )
         title_analysis_schema_definition = TitleAnalysisSchema.schema_json(indent=2)
-        thumbnail_analysis_schema_definition = ThumbnailAnalysisSchema.schema_json(indent=2)
+        thumbnail_analysis_schema_definition = ThumbnailAnalysisSchema.schema_json(
+            indent=2
+        )
         seo_analysis_schema_definition = SEOAnalysisSchema.schema_json(indent=2)
-        audience_engagement_schema_definition = AudienceEngagementSchema.schema_json(indent=2)
-        technical_performance_schema_definition = TechnicalPerformanceSchema.schema_json(indent=2)
+        audience_engagement_schema_definition = AudienceEngagementSchema.schema_json(
+            indent=2
+        )
+        technical_performance_schema_definition = (
+            TechnicalPerformanceSchema.schema_json(indent=2)
+        )
 
         prompt_parts = [
             "# YouTube Video Intelligence Analysis\n\n",
@@ -596,6 +606,11 @@ class GeminiClient:
             [
                 "## Analysis Instructions\n\n",
                 "Analyze this YouTube video following the framework below. Use ONLY the provided metadata as ground truth for factual information.\n\n",
+                "CRITICAL OUTPUT FORMATTING INSTRUCTIONS:\n",
+                "- For each analysis section, the detailed JSON output MUST start with a JSON code block with no text before it\n",
+                "- Always use ```json at the beginning and ``` at the end to delimit each JSON block\n",
+                "- NEVER include any explanatory text before the JSON block - start directly with ```json\n",
+                "- Ensure all JSON properties match exactly what's defined in the schema\n\n",
                 "### 1. 📋 CONTENT SUMMARIZATION\n",
                 "Provide a comprehensive 2-3 paragraph summary covering:\n",
                 "- Main topics, themes, and key messages\n",
@@ -607,55 +622,69 @@ class GeminiClient:
         )
 
         # Hook (Clickability) section with schema - combines Title and Thumbnail analysis
-        prompt_parts.extend([
-            "**🎣 Hook (Clickability) (X/5)**: Provide your overall score (1-5) for how effectively the video attracts clicks through its title and thumbnail. THEN, provide a DETAILED BREAKDOWN of the title analysis as a JSON object adhering to the following schema:\n"
-            + f"```json_schema\n{title_analysis_schema_definition}\n```\n\n",
-            "THEN, provide a DETAILED BREAKDOWN of the thumbnail analysis as a JSON object adhering to the following schema:\n"
-            + f"```json_schema\n{thumbnail_analysis_schema_definition}\n```\n\n",
-        ])
+        prompt_parts.extend(
+            [
+                "**🎣 Hook (Clickability) (X/5)**: Provide your overall score (1-5) for how effectively the video attracts clicks through its title and thumbnail. THEN, provide a DETAILED BREAKDOWN of the title analysis as a JSON object adhering to the following schema:\n"
+                + f"```json_schema\n{title_analysis_schema_definition}\n```\n\n",
+                "THEN, provide a DETAILED BREAKDOWN of the thumbnail analysis as a JSON object adhering to the following schema:\n"
+                + f"```json_schema\n{thumbnail_analysis_schema_definition}\n```\n\n",
+            ]
+        )
 
         # SEO Optimization section with schema
-        prompt_parts.extend([
-            "**🔍 SEO Optimization (X/5)**: Provide your overall score (1-5) for the video's SEO optimization. THEN, provide a DETAILED BREAKDOWN of the SEO analysis as a JSON object adhering to the following schema:\n"
-            + f"```json_schema\n{seo_analysis_schema_definition}\n```\n\n",
-        ])
+        prompt_parts.extend(
+            [
+                "**🔍 SEO Optimization (X/5)**: Provide your overall score (1-5). THEN, provide a DETAILED BREAKDOWN and justification for this score as a JSON object adhering to the following Pydantic schema. The JSON object for detailed breakdown is:\n"
+                + f"```json_schema\n{seo_analysis_schema_definition}\n```\n\n",
+            ]
+        )
 
         # Content Quality section with schema
-        prompt_parts.extend([
-            "**📝 Content Quality (X/5)**: Provide your overall score (1-5). THEN, provide a DETAILED BREAKDOWN and justification for this score as a JSON object adhering to the following Pydantic schema. The JSON object for detailed breakdown is:\n"
-            + f"```json_schema\n{content_quality_schema_definition}\n```\n\n",
-        ])
+        prompt_parts.extend(
+            [
+                "**📝 Content Quality (X/5)**: Provide your overall score (1-5). THEN, provide a DETAILED BREAKDOWN and justification for this score as a JSON object adhering to the following Pydantic schema. The JSON object for detailed breakdown is:\n"
+                + f"```json_schema\n{content_quality_schema_definition}\n```\n\n",
+            ]
+        )
 
         # Audience Engagement section with schema
-        prompt_parts.extend([
-            "**👥 Audience Engagement (X/5)**: Provide your overall score (1-5) for audience engagement. THEN, provide a DETAILED BREAKDOWN of engagement metrics analysis as a JSON object adhering to the following schema:\n"
-            + f"```json_schema\n{audience_engagement_schema_definition}\n```\n\n",
-        ])
+        prompt_parts.extend(
+            [
+                "**👥 Audience Engagement (X/5)**: Provide your overall score (1-5) for audience engagement. Provide your overall score (1-5). THEN, provide a DETAILED BREAKDOWN and justification for this score as a JSON object adhering to the following Pydantic schema. The JSON object for detailed breakdown is:\n"
+                + f"```json_schema\n{audience_engagement_schema_definition}\n```\n\n",
+            ]
+        )
 
         # Technical Performance section with schema
-        prompt_parts.extend([
-            "**⚙️ Technical Performance (X/5)**: Provide your overall score (1-5) for technical quality. THEN, provide a DETAILED BREAKDOWN of technical performance analysis as a JSON object adhering to the following schema:\n"
-            + f"```json_schema\n{technical_performance_schema_definition}\n```\n\n",
-        ])
+        prompt_parts.extend(
+            [
+                "**⚙️ Technical Performance (X/5)**: Provide your overall score (1-5) for technical quality. Provide your overall score (1-5). THEN, provide a DETAILED BREAKDOWN and justification for this score as a JSON object adhering to the following Pydantic schema. The JSON object for detailed breakdown is:\n"
+                + f"```json_schema\n{technical_performance_schema_definition}\n```\n\n",
+            ]
+        )
 
-        prompt_parts.extend([
-            "### 3. 🎯 IMPROVEMENT RECOMMENDATIONS\n\n",
-        ])
+        prompt_parts.extend(
+            [
+                "### 3. 🎯 IMPROVEMENT RECOMMENDATIONS\n\n",
+            ]
+        )
 
         # Other recommendations sections
-        prompt_parts.extend([
-            "**Content Improvements**: Structure, pacing, production quality, accessibility suggestions\n",
-            "**Engagement Optimization**: Hook improvements, CTA placement, interaction strategies\n\n",
-            "### 4. 💡 ACTION PLAN\n",
-            "**Quick Wins**: Immediate improvements\n",
-            "**Medium-term**: Next 3 videos strategy\n",
-            "**Long-term**: Channel growth tactics\n\n",
-            "Format your response in Markdown with clear section headers. For JSON objects, ensure they are properly formatted and delimited with ```json and ``` tags.\n\n",
-            "IMPORTANT INSTRUCTIONS:\n",
-            "1. All metadata in Video Verification section MUST come from the provided API data, not from your own analysis.\n",
-            "2. For each analysis section (Hook, SEO, Content Quality, Audience Engagement, Technical), provide both a clear score out of 5 AND a properly formatted JSON object with detailed analysis.\n",
-            "3. Each JSON response MUST conform exactly to the schema provided for that section.\n",
-        ])
+        prompt_parts.extend(
+            [
+                "**Content Improvements**: Structure, pacing, production quality, accessibility suggestions\n",
+                "**Engagement Optimization**: Hook improvements, CTA placement, interaction strategies\n\n",
+                "### 4. 💡 ACTION PLAN\n",
+                "**Quick Wins**: Immediate improvements\n",
+                "**Medium-term**: Next 3 videos strategy\n",
+                "**Long-term**: Channel growth tactics\n\n",
+                "Format your response in Markdown with clear section headers. For JSON objects, ensure they are properly formatted and delimited with ```json and ``` tags.\n\n",
+                "IMPORTANT INSTRUCTIONS:\n",
+                "1. All metadata in Video Verification section MUST come from the provided API data, not from your own analysis.\n",
+                "2. For each analysis section (Hook, SEO, Content Quality, Audience Engagement, Technical), provide both a clear score out of 5 AND a properly formatted JSON object with detailed analysis.\n",
+                "3. Each JSON response MUST conform exactly to the schema provided for that section.\n",
+            ]
+        )
 
         return "".join(prompt_parts)
 
@@ -782,8 +811,8 @@ class GeminiClient:
         logger.debug(
             f"[GeminiClient][Parse][{key.capitalize()}] Attempting to parse detailed JSON. Section text length: {len(section_text)}"
         )
-        
-        # Try to find the JSON block delimited with ```json ... ```
+
+        # First try to find the JSON block delimited with ```json ... ```
         json_match = re.search(r"```json\s*(\{.*?\})\s*```", section_text, re.DOTALL)
         if json_match:
             json_string = json_match.group(1).strip()
@@ -797,15 +826,18 @@ class GeminiClient:
                 )
                 validated_data = schema_class.parse_obj(parsed_json)
                 result_dict["analysis"][f"{key}_analysis"] = validated_data.dict()
-                
+
                 # If score is present, also set it in the scores dict for consistency
-                if hasattr(validated_data, 'score') and validated_data.score is not None:
-                    score_key = key if key != 'content_quality' else 'content_quality'
+                if (
+                    hasattr(validated_data, "score")
+                    and validated_data.score is not None
+                ):
+                    score_key = key if key != "content_quality" else "content_quality"
                     result_dict["scores"][score_key] = float(validated_data.score)
                     logger.info(
                         f"[GeminiClient][Parse][{key.capitalize()}] Set {score_key} score to {validated_data.score}"
                     )
-                
+
                 logger.info(
                     f"[GeminiClient][Parse][{key.capitalize()}] Successfully parsed and validated detailed JSON"
                 )
@@ -815,19 +847,23 @@ class GeminiClient:
                 )
                 result_dict["analysis"][f"{key}_analysis"] = {
                     "error": f"JSONDecodeError: {str(e)}",
-                    "json_sample": json_string[:500] if json_string else "Empty JSON string"
+                    "json_sample": (
+                        json_string[:500] if json_string else "Empty JSON string"
+                    ),
                 }
             except ValidationError as e:
                 # Ensure parsed_json is defined for the error message
                 data_for_error_log = (
-                    str(parsed_json)[:200] if "parsed_json" in locals() else json_string[:200]
+                    str(parsed_json)[:200]
+                    if "parsed_json" in locals()
+                    else json_string[:200]
                 )
                 logger.error(
                     f"[GeminiClient][Parse][{key.capitalize()}] Failed to validate JSON against schema: {str(e)}\nData sample: {data_for_error_log}"
                 )
                 error_payload = {
                     "error": f"ValidationError: {str(e.errors())}",
-                    "schema": schema_class.__name__
+                    "schema": schema_class.__name__,
                 }
                 if "parsed_json" in locals():
                     error_payload["data_received"] = parsed_json
@@ -840,16 +876,71 @@ class GeminiClient:
                 )
                 result_dict["analysis"][f"{key}_analysis"] = {
                     "error": f"Unexpected error: {str(e)}",
-                    "error_type": type(e).__name__
+                    "error_type": type(e).__name__,
                 }
         else:
+            # If no code block found, try a more aggressive approach to find JSON
+            # Look for a standalone JSON object possibly after non-JSON text
             logger.warning(
-                f"[GeminiClient][Parse][{key.capitalize()}] Could not find JSON block delimited with ```json``` tags in section text."
+                f"[GeminiClient][Parse][{key.capitalize()}] No ```json``` block found, trying to find JSON object directly."
             )
-            result_dict["analysis"][f"{key}_analysis"] = {
-                "error": "Detailed JSON block not found in Gemini response",
-                "section_text_sample": section_text[:200] if section_text else "Empty section text"
-            }
+
+            # Try to find a JSON object starting with { and ending with }
+            json_direct_match = re.search(
+                r"(\{[\s\S]*?\})(?=\s*$|\s*\n\s*###|\s*\n\s*```)", section_text
+            )
+
+            if json_direct_match:
+                json_string = json_direct_match.group(1).strip()
+                logger.debug(
+                    f"[GeminiClient][Parse][{key.capitalize()}] Found potential direct JSON object (first 100 chars): {json_string[:100]}"
+                )
+
+                try:
+                    parsed_json = json.loads(json_string)
+                    logger.debug(
+                        f"[GeminiClient][Parse][{key.capitalize()}] Successfully parsed direct JSON. Type: {type(parsed_json)}"
+                    )
+                    validated_data = schema_class.parse_obj(parsed_json)
+                    result_dict["analysis"][f"{key}_analysis"] = validated_data.dict()
+
+                    # If score is present, also set it in the scores dict for consistency
+                    if (
+                        hasattr(validated_data, "score")
+                        and validated_data.score is not None
+                    ):
+                        score_key = (
+                            key if key != "content_quality" else "content_quality"
+                        )
+                        result_dict["scores"][score_key] = float(validated_data.score)
+                        logger.info(
+                            f"[GeminiClient][Parse][{key.capitalize()}] Set {score_key} score to {validated_data.score} (from direct JSON)"
+                        )
+
+                    logger.info(
+                        f"[GeminiClient][Parse][{key.capitalize()}] Successfully parsed and validated direct JSON"
+                    )
+                except (json.JSONDecodeError, ValidationError, Exception) as e:
+                    logger.error(
+                        f"[GeminiClient][Parse][{key.capitalize()}] Failed to parse direct JSON object: {type(e).__name__}: {str(e)}"
+                    )
+                    # Fall through to the final error case
+                    result_dict["analysis"][f"{key}_analysis"] = {
+                        "error": f"Failed to parse JSON: {type(e).__name__}: {str(e)}",
+                        "section_text_sample": (
+                            section_text[:200] if section_text else "Empty section text"
+                        ),
+                    }
+            else:
+                logger.warning(
+                    f"[GeminiClient][Parse][{key.capitalize()}] Could not find any JSON object in section text."
+                )
+                result_dict["analysis"][f"{key}_analysis"] = {
+                    "error": "Detailed JSON block not found in Gemini response",
+                    "section_text_sample": (
+                        section_text[:200] if section_text else "Empty section text"
+                    ),
+                }
 
     def _parse_analysis_response(self, response: str) -> Dict[str, Any]:
         """Parse the structured analysis response from Gemini.
@@ -895,19 +986,19 @@ class GeminiClient:
 
         # Parse hook score - we'll let the scoring engine calculate this from title + thumbnail
         # Still try to extract a provided hook score from Gemini if available
-        hook_match = re.search(
-            r"Hook \(Clickability\)[^\d]*(\d+)[^\d]*5", response
-        )
+        hook_match = re.search(r"Hook \(Clickability\)[^\d]*(\d+)[^\d]*5", response)
         if hook_match:
             # Store the raw hook score from Gemini, but this will be recalculated by ScoringEngine
             result["scores"]["hook"] = int(hook_match.group(1))
-        
+
         # Also try to extract separate title and thumbnail scores if provided
         title_score_match = re.search(r"Title Analysis[^\d]*(\d+)[^\d]*5", response)
         if title_score_match:
             result["scores"]["title"] = int(title_score_match.group(1))
-            
-        thumbnail_score_match = re.search(r"Thumbnail Analysis[^\d]*(\d+)[^\d]*5", response)
+
+        thumbnail_score_match = re.search(
+            r"Thumbnail Analysis[^\d]*(\d+)[^\d]*5", response
+        )
         if thumbnail_score_match:
             result["scores"]["thumbnail"] = int(thumbnail_score_match.group(1))
 
@@ -961,65 +1052,118 @@ class GeminiClient:
             if match:
                 section_text = match.group(0).strip()
                 result["analysis"][key] = section_text
-                
+
                 # Import necessary schemas here to avoid circular imports
                 from src.analysis.schemas import (
                     ContentQualityAnalysisSchema,
                     TitleAnalysisSchema,
                     ThumbnailAnalysisSchema,
                     SEOAnalysisSchema,
-                    AudienceEngagementSchema, 
+                    AudienceEngagementSchema,
                     TechnicalPerformanceSchema,
                 )
 
                 # Use the helper function to extract and validate JSON for each section
                 if key == "hook":
                     # For hook, we need to check for both title and thumbnail JSON blocks
-                    logger.info(f"[GeminiClient][Parse][Hook] Processing hook section with both title and thumbnail analysis")
-                    
+                    logger.info(
+                        f"[GeminiClient][Parse][Hook] Processing hook section with both title and thumbnail analysis"
+                    )
+
                     # First look for title analysis JSON
-                    title_section_match = re.search(r"DETAILED BREAKDOWN of the title analysis.*?(?=THEN|```json_schema|$)", section_text, re.DOTALL)
+                    title_section_match = re.search(
+                        r"DETAILED BREAKDOWN of the title analysis.*?(?=THEN|```json_schema|$)",
+                        section_text,
+                        re.DOTALL,
+                    )
                     if title_section_match:
                         title_section = title_section_match.group(0)
-                        logger.debug(f"[GeminiClient][Parse][Hook] Found title analysis section (first 100 chars): {title_section[:100]}")
-                        self._extract_and_validate_json(title_section, TitleAnalysisSchema, "title", result)
+                        logger.debug(
+                            f"[GeminiClient][Parse][Hook] Found title analysis section (first 100 chars): {title_section[:100]}"
+                        )
+                        self._extract_and_validate_json(
+                            title_section, TitleAnalysisSchema, "title", result
+                        )
                     else:
-                        logger.warning(f"[GeminiClient][Parse][Hook] Could not find title analysis section in hook analysis")
-                    
+                        logger.warning(
+                            f"[GeminiClient][Parse][Hook] Could not find title analysis section in hook analysis"
+                        )
+
                     # Then look for thumbnail analysis JSON
-                    thumbnail_section_match = re.search(r"DETAILED BREAKDOWN of the thumbnail analysis.*?(?=###|$)", section_text, re.DOTALL)
+                    thumbnail_section_match = re.search(
+                        r"DETAILED BREAKDOWN of the thumbnail analysis.*?(?=###|$)",
+                        section_text,
+                        re.DOTALL,
+                    )
                     if thumbnail_section_match:
                         thumbnail_section = thumbnail_section_match.group(0)
-                        logger.debug(f"[GeminiClient][Parse][Hook] Found thumbnail analysis section (first 100 chars): {thumbnail_section[:100]}")
-                        self._extract_and_validate_json(thumbnail_section, ThumbnailAnalysisSchema, "thumbnail", result)
+                        logger.debug(
+                            f"[GeminiClient][Parse][Hook] Found thumbnail analysis section (first 100 chars): {thumbnail_section[:100]}"
+                        )
+                        self._extract_and_validate_json(
+                            thumbnail_section,
+                            ThumbnailAnalysisSchema,
+                            "thumbnail",
+                            result,
+                        )
                     else:
-                        logger.warning(f"[GeminiClient][Parse][Hook] Could not find thumbnail analysis section in hook analysis")
-                    
+                        logger.warning(
+                            f"[GeminiClient][Parse][Hook] Could not find thumbnail analysis section in hook analysis"
+                        )
+
                     # If we have both title and thumbnail analysis with scores, calculate combined hook score
-                    title_score = float(result["analysis"].get("title_analysis", {}).get("score", 0.0))
-                    thumbnail_score = float(result["analysis"].get("thumbnail_analysis", {}).get("score", 0.0))
-                    
+                    title_score = float(
+                        result["analysis"].get("title_analysis", {}).get("score", 0.0)
+                    )
+                    thumbnail_score = float(
+                        result["analysis"]
+                        .get("thumbnail_analysis", {})
+                        .get("score", 0.0)
+                    )
+
                     if title_score > 0 and thumbnail_score > 0:
                         # Calculate combined hook score (50% title + 50% thumbnail)
                         hook_score = (title_score + thumbnail_score) / 2.0
-                        logger.info(f"[GeminiClient][Parse][Hook] Calculated hook score: {hook_score} from title: {title_score} and thumbnail: {thumbnail_score}")
-                        
+                        logger.info(
+                            f"[GeminiClient][Parse][Hook] Calculated hook score: {hook_score} from title: {title_score} and thumbnail: {thumbnail_score}"
+                        )
+
                         # Update the hook score in the result (will be overwritten by ScoringEngine later)
                         result["scores"]["title"] = title_score
                         result["scores"]["thumbnail"] = thumbnail_score
                         result["scores"]["hook"] = hook_score
 
                 elif key == "seo_optimization":
-                    self._extract_and_validate_json(section_text, SEOAnalysisSchema, "seo", result)
-                    
+                    self._extract_and_validate_json(
+                        section_text, SEOAnalysisSchema, "seo_optimization", result
+                    )
+
                 elif key == "content_quality":
-                    self._extract_and_validate_json(section_text, ContentQualityAnalysisSchema, "content_quality", result)
-                    
+                    self._extract_and_validate_json(
+                        section_text,
+                        ContentQualityAnalysisSchema,
+                        "content_quality",
+                        result,
+                    )
+
                 elif key == "audience_engagement":
-                    self._extract_and_validate_json(section_text, AudienceEngagementSchema, "audience_engagement", result)
-                    
+                    self._extract_and_validate_json(
+                        section_text,
+                        AudienceEngagementSchema,
+                        "audience_engagement",
+                        result,
+                    )
+                    # Ensure the score key matches
+                    if "audience_engagement_analysis" in result["analysis"] and "score" in result["analysis"]["audience_engagement_analysis"]:
+                        result["scores"]["audience_engagement"] = float(result["analysis"]["audience_engagement_analysis"]["score"])
+
                 elif key == "technical_performance":
-                    self._extract_and_validate_json(section_text, TechnicalPerformanceSchema, "technical_performance", result)
+                    self._extract_and_validate_json(
+                        section_text,
+                        TechnicalPerformanceSchema,
+                        "technical_performance",
+                        result,
+                    )
 
         # Extract recommendations
         # Extract hook recommendations (combining title and thumbnail)
@@ -1049,7 +1193,7 @@ class GeminiClient:
             result["recommendations"]["seo_optimization"] = [
                 s.strip() for s in seo_impr if s.strip()
             ]
-            
+
         engagement_match = re.search(
             r"Audience Engagement.*?(?=\*\*Technical|###)", response, re.DOTALL
         )
@@ -1058,7 +1202,7 @@ class GeminiClient:
             result["recommendations"]["audience_engagement"] = [
                 e.strip() for e in engagement_impr if e.strip()
             ]
-            
+
         technical_match = re.search(
             r"Technical Improvements.*?(?=###|$)", response, re.DOTALL
         )
